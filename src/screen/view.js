@@ -11,7 +11,7 @@ const TAB_LABEL = { inicio: twin("label", "Inicio", "Home"), peliculas: twin("la
 // The brand shown in the merged bar, like UltraHD's "[UHD] Ultra Hd": the plugin's logo next to its
 // name. The logo is an inline data: PNG (no network), with the name as its fallback for a Kino that
 // cannot draw it.
-const logo = { type: "Image", key: "logo", url: LOGO_DATA, aspect: LOGO_ASPECT, fit: "contain", h: 24, alt: "ZappTV", altEn: "ZappTV", fallback: { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" } };
+const logo = { type: "Image", key: "logo", url: LOGO_DATA, aspect: LOGO_ASPECT, fit: "contain", h: 32, alt: "ZappTV", altEn: "ZappTV", fallback: { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" } };
 const name = { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" };
 const brand = { type: "Row", key: "brand", gap: 8, crossAxisAlignment: "center", children: [logo, name] };
 

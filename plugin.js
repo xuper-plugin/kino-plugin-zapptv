@@ -470,17 +470,21 @@ function browseView({ tab, data, pending, failed, device = "phone" }) {
   };
 }
 function searchView({ query, status, items, device = "phone" }) {
-  const searchForm = {
+  const tv = device === "tv";
+  const searchForm = () => ({
     type: "Form",
     key: "searchForm",
     onSubmitted: "search",
-    gap: 12,
-    children: [
+    gap: 8,
+    children: tv ? [{ type: "Row", key: "searchRow", gap: 16, crossAxisAlignment: "center", children: [
+      { type: "TextField", key: "q", kind: "text", value: query, ...twin("labelText", "Buscar en ZappTV", "Search ZappTV"), maxLength: 100, autofocus: true, weight: 1 },
+      { type: "ElevatedButton", key: "searchGo", ...twin("labelText", "Buscar", "Search"), icon: "search", submit: true }
+    ] }] : [
       { type: "TextField", key: "q", kind: "text", value: query, ...twin("labelText", "Buscar en ZappTV", "Search ZappTV"), maxLength: 100, autofocus: true },
-      { type: "ElevatedButton", key: "searchGo", ...twin("labelText", "Buscar", "Search"), icon: "search", submit: true, fill: true }
+      { type: "ElevatedButton", key: "searchGo", ...twin("labelText", "Buscar", "Search"), icon: "search", submit: true }
     ]
-  };
-  const body = [searchForm];
+  });
+  const body = tv ? [] : [searchForm()];
   if (status === "fail") {
     body.push({ type: "MaterialBanner", key: "searchFailed", role: "error", text: "La b\xFAsqueda fall\xF3.", textEn: "Search failed.", action: { label: "Reintentar", labelEn: "Retry", onTap: "sretry" } });
   } else if (status === "done" && items) {
@@ -496,7 +500,7 @@ function searchView({ query, status, items, device = "phone" }) {
       dense: true,
       divider: false,
       leading: { type: "IconButton", key: "back", icon: "arrow_back", ...twin("labelText", "Atr\xE1s", "Back"), onPressed: "back" },
-      title: { type: "Text", text: "Buscar", textEn: "Search", style: "h4" }
+      ...tv ? { title: searchForm() } : { title: { type: "Text", text: "Buscar", textEn: "Search", style: "h4" } }
     },
     body: { type: "SingleChildScrollView", key: "search-page", children: [{ type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] },
     ...status === "loading" ? { every: { ms: 1e3, event: "stick" } } : {}

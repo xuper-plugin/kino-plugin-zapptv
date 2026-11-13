@@ -88,19 +88,24 @@ export function browseView({ tab, data, pending, failed, device = "phone" }) {
   };
 }
 
-/** The in-plugin search page: a text box, then skeletons while ZappTV answers, then Kino's grid.
- * The form lives in the BODY on every device (not crammed into the appBar title): on a real Android
- * TV a TextField inside the bar is flaky to focus and submit — a typed query "didn't search" — and
- * it looked cramped. A full-width field + a wide search button is reliable with a remote and reads
- * as a proper search page. */
+/** The in-plugin search page, same shape as Xuper's: on a TV the box and its button sit in the merged
+ * bar (field on the left with `weight: 1`, button on the right) and the bar carries no title — the
+ * screen is known by what it does; elsewhere the box is at the top of the body under a "Buscar" title.
+ * Then skeletons while ZappTV answers, then Kino's grid. */
 export function searchView({ query, status, items, device = "phone" }) {
-  const searchForm = {
-    type: "Form", key: "searchForm", onSubmitted: "search", gap: 12, children: [
-      { type: "TextField", key: "q", kind: "text", value: query, ...twin("labelText", "Buscar en ZappTV", "Search ZappTV"), maxLength: 100, autofocus: true },
-      { type: "ElevatedButton", key: "searchGo", ...twin("labelText", "Buscar", "Search"), icon: "search", submit: true, fill: true },
-    ],
-  };
-  const body = [searchForm];
+  const tv = device === "tv";
+  const searchForm = () => ({
+    type: "Form", key: "searchForm", onSubmitted: "search", gap: 8, children: tv
+      ? [{ type: "Row", key: "searchRow", gap: 16, crossAxisAlignment: "center", children: [
+        { type: "TextField", key: "q", kind: "text", value: query, ...twin("labelText", "Buscar en ZappTV", "Search ZappTV"), maxLength: 100, autofocus: true, weight: 1 },
+        { type: "ElevatedButton", key: "searchGo", ...twin("labelText", "Buscar", "Search"), icon: "search", submit: true },
+      ] }]
+      : [
+        { type: "TextField", key: "q", kind: "text", value: query, ...twin("labelText", "Buscar en ZappTV", "Search ZappTV"), maxLength: 100, autofocus: true },
+        { type: "ElevatedButton", key: "searchGo", ...twin("labelText", "Buscar", "Search"), icon: "search", submit: true },
+      ],
+  });
+  const body = tv ? [] : [searchForm()];
   if (status === "fail") {
     body.push({ type: "MaterialBanner", key: "searchFailed", role: "error", text: "La búsqueda falló.", textEn: "Search failed.", action: { label: "Reintentar", labelEn: "Retry", onTap: "sretry" } });
   } else if (status === "done" && items) {
@@ -115,7 +120,7 @@ export function searchView({ query, status, items, device = "phone" }) {
     appBar: {
       type: "AppBar", mergeWithKinoBar: true, dense: true, divider: false,
       leading: { type: "IconButton", key: "back", icon: "arrow_back", ...twin("labelText", "Atrás", "Back"), onPressed: "back" },
-      title: { type: "Text", text: "Buscar", textEn: "Search", style: "h4" },
+      ...(tv ? { title: searchForm() } : { title: { type: "Text", text: "Buscar", textEn: "Search", style: "h4" } }),
     },
     body: { type: "SingleChildScrollView", key: "search-page", children: [{ type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] },
     ...(status === "loading" ? { every: { ms: 1000, event: "stick" } } : {}),

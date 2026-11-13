@@ -1,11 +1,19 @@
 // The screen's trees: a pure view of what index.js holds. A tab not in yet draws skeletons shaped
 // like what replaces them, so nothing jumps when the rows arrive. Every text is bilingual.
 import { TAB_IDS, cardOf, httpsImage } from "./model.js";
+import { LOGO_DATA, LOGO_ASPECT } from "./logo.js";
 
 const twin = (field, es, en) => ({ [field]: es, [field + "En"]: en });
 const POLL_MS = 1500;
 const SEARCH_CAP = 60;
 const TAB_LABEL = { inicio: twin("label", "Inicio", "Home"), peliculas: twin("label", "Películas", "Movies"), series: twin("label", "Series", "Series") };
+
+// The brand shown in the merged bar, like UltraHD's "[UHD] Ultra Hd": the plugin's logo next to its
+// name. The logo is an inline data: PNG (no network), with the name as its fallback for a Kino that
+// cannot draw it.
+const logo = { type: "Image", key: "logo", url: LOGO_DATA, aspect: LOGO_ASPECT, fit: "contain", h: 24, alt: "ZappTV", altEn: "ZappTV", fallback: { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" } };
+const name = { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" };
+const brand = { type: "Row", key: "brand", gap: 8, crossAxisAlignment: "center", children: [logo, name] };
 
 const railSkeleton = (n) => ({
   type: "Column", key: "skel" + n, gap: 8, children: [
@@ -69,14 +77,13 @@ export function browseView({ tab, data, pending, failed, device = "phone" }) {
   // where Close was, our `title` where the plugin's name was — instead of two stacked ones. `dense`
   // makes it a compact row. On a TV the tabs sit beside the name in one D-pad strip and search is a bar
   // action (a remote can't reach a floating one); on a phone the tabs pin under the bar and search floats.
-  const name = { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" };
   const searchAction = { type: "IconButton", key: "searchButton", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" };
   return {
     type: "Scaffold",
     appBar: {
       type: "AppBar", mergeWithKinoBar: true, dense: true, divider: false,
       leading: { type: "IconButton", key: "close", icon: "close", ...twin("labelText", "Cerrar", "Close"), onPressed: { go: { close: true } } },
-      title: tv ? { type: "Row", key: "titleRow", gap: 24, crossAxisAlignment: "center", children: [name, tabBar(active)] } : name,
+      title: tv ? { type: "Row", key: "titleRow", gap: 24, crossAxisAlignment: "center", children: [brand, tabBar(active)] } : brand,
       ...(tv ? { actions: [searchAction] } : {}),
     },
     ...(tv ? {} : { floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" } }),

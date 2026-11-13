@@ -19,8 +19,10 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { checkOutput, checkSettingsOutput, contract, englishCoverage, fetchAnyHost, isStandaloneSet, kb, maskSetPasswords, statusHide, requiredExports, validateManifest, validateManifestWithoutEnhancements } from "./contract.mjs";
+import { checkOutput, checkSettingsOutput, contract, englishCoverage, fetchAnyHost, isScreenOnlyConsumer, isStandaloneSet, kb, maskSetPasswords, statusHide, requiredExports, validateManifest, validateManifestWithoutEnhancements } from "./contract.mjs";
 import { resolvePalette } from "./palette.mjs";
+import { protocolBlocks, protocolWarnings } from "./protocol.mjs";
+import { resolveAppTheme } from "./appthemes.mjs";
 import { decodeCipherKey } from "./seal.mjs";
 import { createKino, signingLane } from "./kino-shim.mjs";
 import { loadPlugin, missingGlobalLines, scanMissingGlobals } from "./sandbox.mjs";
@@ -74,17 +76,29 @@ export function consentLines(m, { authorFingerprint = null } = {}) {
   // apiVersion 14 "room" (PluginConsent.extraLines, Task 8l): people on the Internet reach this device while a room is open: red.
   if (m.capabilities.includes(contract.kinoRoom.capability)) line(contract.kinoRoom.consentLine.es, true);
   // apiVersion 14 "schedule" (PluginConsent.extraLines, Task 8q): it runs by itself in the background, on the person's internet and battery: red.
-  if (m.capabilities.includes(contract.kinoJobs.capability)) line(contract.kinoJobs.consentLine.es, true);
+  if (m.capabilities.includes(contract.kinoJobs.capability)) line(((m.jobs || []).some((j) => j.perProfile) ? contract.kinoJobs.consentLinePerProfile : contract.kinoJobs.consentLine).es, true);
   // apiVersion 14 "ai" (PluginConsent.extraLines, Task 8r): what it sends leaves the device for a third-party AI service: red.
   if (m.capabilities.includes(contract.kinoAi.capability)) line(contract.kinoAi.consentLine.es, true);
   // apiVersion 15 "identity" (PluginConsent.extraLines): who the person is on Telegram may leave the device: red.
   if (m.capabilities.includes(contract.kinoIdentity.capability)) line(contract.kinoIdentity.consentLine.es, true);
   // apiVersion 15 "notifications" (PluginConsent.extraLines): notices in the Home bell: a plain line, not red.
   if (m.capabilities.includes(contract.kinoNotifications.capability)) line(contract.kinoNotifications.consentLine.es);
+  // apiVersion 15 "pluginStore" (PluginConsent.extraLines): a plain line, and a red one for a live store (searches reach its servers).
+  if (m.capabilities.includes(contract.kinoStore.capability)) {
+    line(contract.kinoStore.consentLine.es);
+    if (m.pluginStore?.mode === "live") line(contract.kinoStore.consentLineLive.es, true);
+  }
   // apiVersion 14 "shared" (PluginConsent.extraLines, Task 8q-2): the person's own data between their own devices: a plain line.
   if (m.capabilities.includes(contract.kinoShared.capability)) line(contract.kinoShared.consentLine.es);
   // apiVersion 7 "segments": a plain line, not red (it only learns which title plays): PluginConsent / Segments.CONSENT_LINE.
   if (m.capabilities.includes(contract.segments.capability)) line(contract.segments.consentLine);
+  // apiVersion 19 "lyrics": a plain line, not red (it learns the title and artist of what plays): PluginConsent / Lyrics consent text.
+  if (m.capabilities.includes(contract.lyrics.capability)) line(contract.lyrics.consentLine);
+  // apiVersion 21 "files": a plain line (the person picks every file herself): PluginConsent / ConsentText.Files.
+  if (m.capabilities.includes(contract.files.capability)) line(contract.files.consentLine);
+  // apiVersion 20 "visualBrowser": true (kino.visualBrowser): a warning line (contract.visualBrowser.consentLine, StringsEs.pluginConsent.visualBrowser);
+  // Kino also asks in its own sheet at every open.
+  if (m.visualBrowser) line(contract.visualBrowser.consentLine);
   if (m.secrets && Object.keys(m.secrets).length) line("Usa datos sellados por su autor");
   if (m.telemetry) line(m.telemetry === contract.manifest.telemetry.verbose.value ? contract.manifest.telemetry.verbose.consentLine : contract.manifest.telemetry.consentLine);
   if (authorFingerprint) line(contract.manifest.signature.consentLine);
@@ -102,6 +116,39 @@ export function consentLines(m, { authorFingerprint = null } = {}) {
   // fetchHosts "any" at apiVersion 9 (Kino 0.9.55): PluginConsent.FETCH_HOSTS_LINE, in red.
   if (fetchAnyHost(m)) line(contract.manifest.fetchHosts.consentLine, true);
   return out;
+}
+
+/**
+ * Where the docs say what a screen-only consumer declares instead of a placeholder: no host at all (`"hosts": []`). Named, not
+ * linked: the public docs site still describes the old rule under its anchor.
+ */
+export const PLACEHOLDER_HOST_DOCS = "the plugin guide's section «A consumer's hosts: a screen-only consumer declares none»";
+
+/**
+ * Whether [host] is a placeholder, never a host a plugin really loads from: the RFC 2606 / RFC 6761 example and reserved names
+ * (`example.com`, `example.org`, `example.net` and their subdomains, anything under `.test`, `.invalid`, `.example`), a
+ * leading `*.` read as its domain. Kino accepts them; validate warns, so a scaffold's placeholder never ships unnoticed.
+ */
+export function isPlaceholderHost(host) {
+  if (typeof host !== "string") return false;
+  const h = host.trim().toLowerCase().replace(/\.$/, "").replace(/^\*\./, "");
+  return /(^|\.)example\.(com|org|net)$/.test(h) || /(^|\.)(test|invalid|example)$/.test(h);
+}
+
+/**
+ * One warning per placeholder entry of the manifest's raw [hosts] (strings or `{ host }` objects). A screen-only consumer
+ * ([manifest] with consumes and capabilities exactly ["screen"], apiVersion 20: isScreenOnlyConsumer) is told to declare none.
+ */
+export function placeholderHostWarnings(hosts, manifest = null) {
+  if (!Array.isArray(hosts)) return [];
+  const advice = isScreenOnlyConsumer(manifest)
+    ? `a screen-only consumer needs no host: declare none ("hosts": []); its pictures from public https addresses need no declaration (see ${PLACEHOLDER_HOST_DOCS})`
+    : "declare a host the plugin really loads from";
+  return hosts
+    .map((h) => (typeof h === "string" ? h : h && typeof h === "object" ? h.host : null))
+    .filter(isPlaceholderHost)
+    .map((h) => `hosts: "${h}" is a placeholder host; ${advice}` +
+      (/(^|\.)invalid$/.test(h.trim().toLowerCase().replace(/\.$/, "")) ? " (Kino accepts a .invalid name and never lists it, but it reaches nothing: keep it only on purpose)" : ""));
 }
 
 /** The tracking consent line for [hosts], as the app's Tracking.consentLine builds it (`.invalid` placeholders left out). */
@@ -357,7 +404,7 @@ export function sharedSecretKeyWarnings(source) {
 export function undeclaredLibraryProblem(m, source) {
   const L = contract.kinoLibrary;
   if ((m.capabilities || []).includes(L.capability)) return null;
-  if (!/\bkino\s*\.\s*library\s*\.\s*(watched|saved)\s*\(/.test(source)) return null;
+  if (!/\bkino\s*\.\s*library\s*\.\s*(watched|saved|stats)\s*\(/.test(source)) return null;
   return `The code calls kino.library but the manifest does not declare the "${L.capability}" capability (apiVersion ${L.apiVersion}): Kino would refuse every call with permission_denied`;
 }
 
@@ -409,16 +456,28 @@ export async function validate(dirArg, { run = null, args = [], config = {}, rep
   // "debug": true only turns every person's "Modo debug" switch on by default (Kino 0.9.50): the author is told what that means.
   if (m.debug) notes.push(contract.manifest.debug.defaultOnNote);
   if (m.theme && Object.keys(m.theme).length) for (const w of resolvePalette(m.theme).warnings) notes.push(w);
+  // appThemes: what each theme drops on a phone and on a TV, so the author sees it before publishing.
+  for (const t of m.appThemes ?? []) {
+    for (const [form, tv] of [["phone", false], ["tv", true]]) {
+      for (const w of resolveAppTheme(t, { tv }).warnings) notes.push(`appThemes ${t.id} (${form}): ${w}`);
+    }
+  }
   // Accepted from Kino 0.9.45 on; older apps still refuse the install, so the author is told. They
   // counted the raw entries (duplicates too), so this does as well.
   const legacy = contract.manifest.legacyMaxHosts;
   if (JSON.parse(manifestText).hosts.length > legacy.value) {
     notes.push(`Más de ${legacy.value} hosts: Kino ${legacy.refusedUpToApp} o anterior rechaza este plugin; necesita Kino ${legacy.noLimitFromApp} o superior`);
   }
+  // A placeholder host (example.com, *.test...) is accepted by Kino but is never where a plugin really loads from: said loudly.
+  const rawManifest = JSON.parse(manifestText);
+  warnings.push(...placeholderHostWarnings(rawManifest.hosts, rawManifest));
   if (m.browser) {
     notes.push(m.browserPages
       ? "kino.browser.capture and kino.browser.page only work in the app (a hidden WebView); here they answer browser_unavailable, so test on a device. Kino never solves captchas: a page that asks to confirm a human is there answers blocked"
       : "kino.browser.capture only works in the app (a hidden WebView); here it answers browser_unavailable, so test resolve on a device. To read pages with kino.browser.page declare \"browser\": \"pages\"");
+  }
+  if (m.visualBrowser) {
+    notes.push("kino.visualBrowser.open needs a window the person drives, which the Node kit does not have: it answers unavailable unless a test passes createKino a `visualBrowser` option (the person). Test the real window on a phone or a TV (experimental there); `kino.visualBrowser.available` is false on a device without a WebView, so keep another way (pasting the cookies into a password setting)");
   }
   // Kino 0.9.55's English texts (labelEn, hintEn, confirmEn, section.labelEn): only said once the plugin uses them.
   const en = englishCoverage(m);
@@ -482,6 +541,12 @@ export async function validate(dirArg, { run = null, args = [], config = {}, rep
     }
   }
   const consent = consentLines(m, { authorFingerprint });
+  // apiVersion 20, the plugin protocol: what the app would refuse or drop in provides / consumes, and what each side must do.
+  const protocol = protocolBlocks(JSON.parse(manifestText));
+  for (const why of protocol.problems) problems.push(`kino-plugin.json: ${why}`);
+  warnings.push(...protocolWarnings(JSON.parse(manifestText)));
+  if (protocol.provides.length) notes.push(`provides: this plugin opens ${protocol.provides.map((d) => `"${d.name}" (${[...Object.keys(d.calls), ...Object.keys(d.streams)].map((n) => `proto_${d.name}_${n}`).join(", ") || "no calls"})`).join(", ")}: each call or stream is an export of that name; Kino validates its argument against "in" and its answer against "out"`);
+  if (protocol.consumes.length) notes.push(`consumes: kino.plugins.call(${protocol.consumes.map((u) => `"${u.alias}"`).join(" | ")}, call, arg) asks ${protocol.consumes.map((u) => u.repo).join(", ")} through Kino; it rejects with an error whose code is ${contract.protocol.errorCodes.join(", ")}: handle provider_missing (the person may not have installed it; see recommends and go.installPlugin). Try it: node sdk/run.mjs --provider <provider folder> <this folder> screenEvent <name>`);
   // apiVersion 9's player panel button and settings layout: below it Kino ignores both fields, so the author is told.
   const layoutDrops = [];
   const declared = JSON.parse(manifestText);
@@ -511,6 +576,10 @@ export async function validate(dirArg, { run = null, args = [], config = {}, rep
   }
   if ((m.jobs || []).some((j) => j.runOn === "preferPhone")) {
     notes.push(`runOn "preferPhone": ONE of the person's linked devices runs ${(m.jobs || []).filter((j) => j.runOn === "preferPhone").map((j) => j.id).join(", ")}, a linked phone first; the TV runs it only when no phone can (none linked, or quiet for ${contract.kinoJobs.election.freshPeriods} periods). Write the result with kino.shared so the TV reads it${(m.capabilities || []).includes(contract.kinoShared.capability) ? "" : ' (declare the "shared" capability)'}, and read kino.device in the job to do less on a TV`);
+  }
+  if ((m.jobs || []).some((j) => j.perProfile)) {
+    const J = contract.kinoJobs;
+    notes.push(`perProfile: Kino runs ${(m.jobs || []).filter((j) => j.perProfile).map((j) => j.id).join(", ")} once for each profile of the device with the plugin on, one at a time, oldest result first; ctx never says which: kino.library, kino.shared, kino.storage, kino.config and the cookies are that profile's, and ${J.perProfileRefusedApis.join(", ")} answer not_allowed for a profile that is not in use, so catch it`);
   }
   if ((m.capabilities || []).includes(contract.kinoAi.capability)) {
     // Task 8r: what the AI is and is not, so the author treats the reply as untrusted data and keeps a fallback.
@@ -614,6 +683,10 @@ export async function validate(dirArg, { run = null, args = [], config = {}, rep
     // Only the plugin's OWN manifest refuses the install (an enhancement's missing exports drop that block, as the app does: the
     // block's exports are checked below, against what the entry really exports).
     const own = validateManifestWithoutEnhancements(manifestText).manifest;
+    for (const d of protocol.provides) for (const n of [...Object.keys(d.calls), ...Object.keys(d.streams)]) {
+      // The app installs it, but every consumer's call to that name answers provider_failed: the door is broken, so the kit fails it.
+      if (typeof plugin[`proto_${d.name}_${n}`] !== "function") problems.push(`provides "${d.name}": the plugin does not export proto_${d.name}_${n}() (the name is case-sensitive): Kino installs it, but every consumer's ${n in d.calls ? "call" : "poll"} of "${n}" answers provider_failed`);
+    }
     const missing = requiredExports(own.capabilities, own.settings, own).filter((f) => typeof plugin[f] !== "function");
     if (missing.length) problems.push(`the plugin doesn't export ${missing.join(", ")}: Kino refuses the install ("le falta ${missing.sort().join(", ")}")`);
     else {
@@ -738,7 +811,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     result.problems.forEach((p) => console.error(`✗ ${p}`));
     (result.warnings || []).forEach((w) => console.error(`! ${w}`));
     result.notes.forEach((n) => console.error(`· ${n}`));
-    if (result.ok) console.error("✓ Kino would accept this plugin" + (result.drops.length ? ` (${result.drops.length} entries dropped, see above)` : "") + (result.warnings.length ? ` (${result.warnings.length} warning${result.warnings.length === 1 ? "" : "s"} above: the install works, the call fails where the plugin uses a global Kino lacks)` : ""));
+    if (result.ok) console.error("✓ Kino would accept this plugin" + (result.drops.length ? ` (${result.drops.length} entries dropped, see above)` : "") + (result.warnings.length ? ` (${result.warnings.length} warning${result.warnings.length === 1 ? "" : "s"} above: the install works, but read each one: it is something Kino does differently from what the plugin expects)` : ""));
     process.exitCode = result.ok ? 0 : 1;
   }
 }

@@ -1,7 +1,7 @@
 {
   "id": "zapptv",
   "name": "ZappTV",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "apiVersion": 6,
   "entry": "plugin.js",
   "icon": "icon.png",
@@ -48,6 +48,9 @@
         "opensFrom": ["menu", "settings"],
         "settingsButton": { "label": "Abrir ZappTV", "labelEn": "Open ZappTV" }
       }
+    },
+    "19": {
+      "capabilities": ["screen"]
     }
   }
 }

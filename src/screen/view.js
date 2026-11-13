@@ -64,21 +64,26 @@ export function browseView({ tab, data, pending, failed, device = "phone" }) {
   }
   const isBanner = (n) => !!n && (n.type === "heroCard" || n.key === "heroSkeleton" || (n.type === "PageView" && String(n.key).startsWith("hero")));
   const banner = body.length > 0 && isBanner(body[0]) ? body.shift() : null;
-  // Kino already draws its own close+name bar above every screen, so this one carries NO leading/title
-  // text of its own (that would duplicate it). On a TV the tab strip goes in `title`, where it shares
-  // ONE compact row with the search action (a TabBar in `title` sits on the actions' row — a TabBar in
-  // `bottom` is a whole extra row, which stacked under Kino's bar looked cramped). On a phone the tabs
-  // are a full-width strip in `bottom` and search is a FloatingActionButton (easy to thumb; a remote
-  // can't reach a floating one, hence the bar button on TV).
+  // The "one compact bar" the Kino docs recommend (apiVersion 19, Kino 0.9.81+, like Xuper/Latino):
+  // `mergeWithKinoBar` folds the plugin's bar INTO Kino's, so there's a single bar — our `leading`
+  // where Close was, our `title` where the plugin's name was — instead of two stacked ones. `dense`
+  // makes it a compact row. On a TV the tabs sit beside the name in one D-pad strip and search is a bar
+  // action (a remote can't reach a floating one); on a phone the tabs pin under the bar and search floats.
+  const name = { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" };
   const searchAction = { type: "IconButton", key: "searchButton", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" };
   return {
     type: "Scaffold",
     appBar: {
-      type: "AppBar", divider: false,
-      ...(tv ? { title: tabBar(active), actions: [searchAction] } : { bottom: tabBar(active) }),
+      type: "AppBar", mergeWithKinoBar: true, dense: true, divider: false,
+      leading: { type: "IconButton", key: "close", icon: "close", ...twin("labelText", "Cerrar", "Close"), onPressed: { go: { close: true } } },
+      title: tv ? { type: "Row", key: "titleRow", gap: 24, crossAxisAlignment: "center", children: [name, tabBar(active)] } : name,
+      ...(tv ? { actions: [searchAction] } : {}),
     },
     ...(tv ? {} : { floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" } }),
-    body: { type: "SingleChildScrollView", key: "browse-" + active, children: [...(banner ? [banner] : []), { type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] },
+    body: { type: "Column", key: "page", children: [
+      ...(tv ? [] : [{ type: "Column", key: "tabsRow", padding: { compact: 0, expanded: 24 }, children: [tabBar(active)] }]),
+      { type: "SingleChildScrollView", key: "browse-" + active, flex: 1, children: [...(banner ? [banner] : []), { type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] },
+    ] },
     ...(pending ? { every: { ms: POLL_MS, event: "tick" } } : {}),
   };
 }
@@ -108,7 +113,7 @@ export function searchView({ query, status, items, device = "phone" }) {
   return {
     type: "Scaffold",
     appBar: {
-      type: "AppBar",
+      type: "AppBar", mergeWithKinoBar: true, dense: true, divider: false,
       leading: { type: "IconButton", key: "back", icon: "arrow_back", ...twin("labelText", "Atrás", "Back"), onPressed: "back" },
       title: { type: "Text", text: "Buscar", textEn: "Search", style: "h4" },
     },

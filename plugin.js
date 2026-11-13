@@ -448,16 +448,24 @@ function browseView({ tab, data, pending, failed, device = "phone" }) {
   }
   const isBanner = (n) => !!n && (n.type === "heroCard" || n.key === "heroSkeleton" || n.type === "PageView" && String(n.key).startsWith("hero"));
   const banner = body.length > 0 && isBanner(body[0]) ? body.shift() : null;
+  const name = { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" };
   const searchAction = { type: "IconButton", key: "searchButton", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" };
   return {
     type: "Scaffold",
     appBar: {
       type: "AppBar",
+      mergeWithKinoBar: true,
+      dense: true,
       divider: false,
-      ...tv ? { title: tabBar(active), actions: [searchAction] } : { bottom: tabBar(active) }
+      leading: { type: "IconButton", key: "close", icon: "close", ...twin("labelText", "Cerrar", "Close"), onPressed: { go: { close: true } } },
+      title: tv ? { type: "Row", key: "titleRow", gap: 24, crossAxisAlignment: "center", children: [name, tabBar(active)] } : name,
+      ...tv ? { actions: [searchAction] } : {}
     },
     ...tv ? {} : { floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" } },
-    body: { type: "SingleChildScrollView", key: "browse-" + active, children: [...banner ? [banner] : [], { type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] },
+    body: { type: "Column", key: "page", children: [
+      ...tv ? [] : [{ type: "Column", key: "tabsRow", padding: { compact: 0, expanded: 24 }, children: [tabBar(active)] }],
+      { type: "SingleChildScrollView", key: "browse-" + active, flex: 1, children: [...banner ? [banner] : [], { type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] }
+    ] },
     ...pending ? { every: { ms: POLL_MS, event: "tick" } } : {}
   };
 }
@@ -484,6 +492,9 @@ function searchView({ query, status, items, device = "phone" }) {
     type: "Scaffold",
     appBar: {
       type: "AppBar",
+      mergeWithKinoBar: true,
+      dense: true,
+      divider: false,
       leading: { type: "IconButton", key: "back", icon: "arrow_back", ...twin("labelText", "Atr\xE1s", "Back"), onPressed: "back" },
       title: { type: "Text", text: "Buscar", textEn: "Search", style: "h4" }
     },

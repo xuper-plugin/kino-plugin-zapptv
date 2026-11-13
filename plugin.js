@@ -253,6 +253,7 @@ function slidesOf(fields, style, limit) {
   return out;
 }
 var safeId = (s) => String(s).replace(/[^A-Za-z0-9._~-]/g, "_").slice(0, 100) || "row";
+var HOME_BLOCKS_LIMIT = 6;
 var HOME_ROWS_PER_BLOCK = 2;
 var HOME_ITEMS_PER_ROW = 20;
 var BROWSE_ITEMS_PER_ROW = 300;
@@ -260,18 +261,19 @@ var TAB_ROWS_LIMIT = 10;
 var TAB_ITEMS_PER_ROW = 20;
 var TAB_SLIDES_LIMIT = 6;
 async function home() {
-  const blocks = await listBlocks();
-  const out = [];
-  for (const b of blocks) {
-    if (!b.type) continue;
-    let rows;
+  const blocks = (await listBlocks()).filter((b) => b.type).slice(0, HOME_BLOCKS_LIMIT);
+  const fetched = await Promise.all(blocks.map(async (b) => {
     try {
-      rows = rowsOf(await get(`block/${encodeURIComponent(b.type)}`), b.style, HOME_ITEMS_PER_ROW);
+      return { b, rows: rowsOf(await get(`block/${encodeURIComponent(b.type)}`), b.style, HOME_ITEMS_PER_ROW) };
     } catch (_) {
-      continue;
+      return null;
     }
-    rows.slice(0, HOME_ROWS_PER_BLOCK).forEach((r, i) => {
-      out.push({ id: `${safeId(b.type)}-${i}`, title: r.name || b.name, items: r.items, ref: b.type });
+  }));
+  const out = [];
+  for (const f of fetched) {
+    if (!f) continue;
+    f.rows.slice(0, HOME_ROWS_PER_BLOCK).forEach((r, i) => {
+      out.push({ id: `${safeId(f.b.type)}-${i}`, title: r.name || f.b.name, items: r.items, ref: f.b.type });
     });
   }
   return out;
@@ -424,7 +426,8 @@ var rail = (r, key) => ({
   ]
 });
 var tabBar = (active) => ({ type: "TabBar", key: "tabs", divider: false, value: active, onChanged: "tab", tabs: TAB_IDS.map((id) => ({ value: id, ...TAB_LABEL[id] })) });
-function browseView({ tab, data, pending, failed }) {
+function browseView({ tab, data, pending, failed, device = "phone" }) {
+  const tv = device === "tv";
   const active = TAB_IDS.includes(tab) ? tab : TAB_IDS[0];
   const body = [];
   if (data) {
@@ -447,11 +450,14 @@ function browseView({ tab, data, pending, failed }) {
   const banner = body.length > 0 && isBanner(body[0]) ? body.shift() : null;
   return {
     type: "Scaffold",
-    floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" },
-    body: { type: "Column", key: "page", children: [
-      { type: "Column", key: "tabsRow", padding: { compact: 0, expanded: 24 }, children: [tabBar(active)] },
-      { type: "SingleChildScrollView", key: "browse-" + active, flex: 1, children: [...banner ? [banner] : [], { type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] }
-    ] },
+    appBar: {
+      type: "AppBar",
+      divider: false,
+      ...tv ? { actions: [{ type: "IconButton", key: "searchButton", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" }] } : {},
+      bottom: tabBar(active)
+    },
+    ...tv ? {} : { floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" } },
+    body: { type: "SingleChildScrollView", key: "browse-" + active, children: [...banner ? [banner] : [], { type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] },
     ...pending ? { every: { ms: POLL_MS, event: "tick" } } : {}
   };
 }

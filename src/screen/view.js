@@ -48,7 +48,8 @@ const tabBar = (active) => ({ type: "TabBar", key: "tabs", divider: false, value
  * `data`: `{ slides, rows }` of the active tab, or null while it is not in. `pending`: some tab is
  * still loading (the timer polls only then). `failed`: the active tab could not load.
  */
-export function browseView({ tab, data, pending, failed }) {
+export function browseView({ tab, data, pending, failed, device = "phone" }) {
+  const tv = device === "tv";
   const active = TAB_IDS.includes(tab) ? tab : TAB_IDS[0];
   const body = [];
   if (data) {
@@ -63,15 +64,19 @@ export function browseView({ tab, data, pending, failed }) {
   }
   const isBanner = (n) => !!n && (n.type === "heroCard" || n.key === "heroSkeleton" || (n.type === "PageView" && String(n.key).startsWith("hero")));
   const banner = body.length > 0 && isBanner(body[0]) ? body.shift() : null;
-  // No appBar here: Kino already draws its own close+name bar above every screen (the manifest's
-  // `screen.label`), and adding a second one just duplicated it ("X ZappTV" twice, stacked).
+  // The appBar has NO leading/title: Kino already draws its own close+name bar above every screen,
+  // so ours would duplicate it ("X ZappTV" twice). It carries only the tab strip (in `bottom`, where
+  // a D-pad can reach it) and, on a TV, the search button as an action (a floating one is hard to
+  // reach with a remote); on a phone the search stays a FloatingActionButton.
   return {
     type: "Scaffold",
-    floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" },
-    body: { type: "Column", key: "page", children: [
-      { type: "Column", key: "tabsRow", padding: { compact: 0, expanded: 24 }, children: [tabBar(active)] },
-      { type: "SingleChildScrollView", key: "browse-" + active, flex: 1, children: [...(banner ? [banner] : []), { type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] },
-    ] },
+    appBar: {
+      type: "AppBar", divider: false,
+      ...(tv ? { actions: [{ type: "IconButton", key: "searchButton", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" }] } : {}),
+      bottom: tabBar(active),
+    },
+    ...(tv ? {} : { floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" } }),
+    body: { type: "SingleChildScrollView", key: "browse-" + active, children: [...(banner ? [banner] : []), { type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] },
     ...(pending ? { every: { ms: POLL_MS, event: "tick" } } : {}),
   };
 }

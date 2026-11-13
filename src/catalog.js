@@ -45,6 +45,7 @@ function slidesOf(fields, style, limit) {
 
 const safeId = (s) => String(s).replace(/[^A-Za-z0-9._~-]/g, "_").slice(0, 100) || "row";
 
+const HOME_BLOCKS_LIMIT = 6; // only the first few blocks: a weak TV box must build Home within its deadline
 const HOME_ROWS_PER_BLOCK = 2;
 const HOME_ITEMS_PER_ROW = 20;
 const BROWSE_ITEMS_PER_ROW = 300;
@@ -53,15 +54,19 @@ const TAB_ITEMS_PER_ROW = 20;
 const TAB_SLIDES_LIMIT = 6;
 
 export async function home() {
-  const blocks = await listBlocks();
+  const blocks = (await listBlocks()).filter((b) => b.type).slice(0, HOME_BLOCKS_LIMIT);
+  // In parallel, not one-after-another: the old sequential loop made ~14 HTTP round trips back to back
+  // and blew the TV's Home-build deadline ("no se pudo armar el Home"). One bad block never fails Home.
+  const fetched = await Promise.all(blocks.map(async (b) => {
+    try { return { b, rows: rowsOf(await get(`block/${encodeURIComponent(b.type)}`), b.style, HOME_ITEMS_PER_ROW) }; }
+    catch (_) { return null; }
+  }));
   const out = [];
-  for (const b of blocks) {
-    if (!b.type) continue;
-    let rows;
-    try { rows = rowsOf(await get(`block/${encodeURIComponent(b.type)}`), b.style, HOME_ITEMS_PER_ROW); } catch (_) { continue; } // one bad block never fails Home
-    rows.slice(0, HOME_ROWS_PER_BLOCK).forEach((r, i) => {
+  for (const f of fetched) {
+    if (!f) continue;
+    f.rows.slice(0, HOME_ROWS_PER_BLOCK).forEach((r, i) => {
       // KinoRow.id must match ^[A-Za-z0-9._~-]{1,128}$ — the human-readable row name goes in `title` only.
-      out.push({ id: `${safeId(b.type)}-${i}`, title: r.name || b.name, items: r.items, ref: b.type });
+      out.push({ id: `${safeId(f.b.type)}-${i}`, title: r.name || f.b.name, items: r.items, ref: f.b.type });
     });
   }
   return out;

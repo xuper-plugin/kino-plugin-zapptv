@@ -187,6 +187,21 @@ function resInfoToSeriesInfo(fields) {
     runtimeMinutes: num(fields, 13) || void 0
   };
 }
+function resInfoToSlide(fields) {
+  const id = str(fields, 1);
+  const image = str(fields, 12) || str(fields, 11);
+  const text = str(fields, 3);
+  if (!id || !image || !text) return null;
+  return {
+    id,
+    ref: id,
+    kind: num(fields, 14) > 1 ? "series" : "movie",
+    // totalEpisodes > 1 => series
+    title: str(fields, 2, "(sin t\xEDtulo)"),
+    image,
+    text: text.length <= 160 ? text : `${text.slice(0, 159).trimEnd()}\u2026`
+  };
+}
 function streamToKinoStream(fields) {
   const url = str(fields, 1);
   if (!url) return null;
@@ -227,10 +242,23 @@ function rowsOf(fields, style, limit) {
   }
   return out;
 }
+function slidesOf(fields, style, limit) {
+  if (style !== "full_scroll") return [];
+  const out = [];
+  for (const c of repeatedMsg(fields, 1)) {
+    if (out.length >= limit) break;
+    const s = resInfoToSlide(c);
+    if (s) out.push(s);
+  }
+  return out;
+}
 var safeId = (s) => String(s).replace(/[^A-Za-z0-9._~-]/g, "_").slice(0, 100) || "row";
 var HOME_ROWS_PER_BLOCK = 2;
 var HOME_ITEMS_PER_ROW = 20;
 var BROWSE_ITEMS_PER_ROW = 300;
+var TAB_ROWS_LIMIT = 10;
+var TAB_ITEMS_PER_ROW = 20;
+var TAB_SLIDES_LIMIT = 6;
 async function home() {
   const blocks = await listBlocks();
   const out = [];
@@ -253,6 +281,16 @@ async function browse(ref, _cursor) {
   const block = blocks.find((b) => b.type === ref);
   const rows = rowsOf(await get(`block/${encodeURIComponent(ref)}`), block?.style, BROWSE_ITEMS_PER_ROW);
   return { items: rows.flatMap((r) => r.items) };
+}
+async function tabPage(blockType) {
+  const blocks = await listBlocks();
+  const block = blocks.find((b) => b.type === blockType);
+  const fields = await get(`block/${encodeURIComponent(blockType)}`);
+  const rows = rowsOf(fields, block?.style, TAB_ITEMS_PER_ROW).slice(0, TAB_ROWS_LIMIT);
+  return {
+    slides: slidesOf(fields, block?.style, TAB_SLIDES_LIMIT),
+    rows: rows.map((r, i) => ({ id: `${safeId(blockType)}-${i}`, title: r.name, items: r.items, ref: blockType }))
+  };
 }
 
 // src/search.js
@@ -309,10 +347,331 @@ async function resolve(ref, _options) {
     alternatives: rest.length ? rest.map((s) => ({ ...s, mime: s.url.includes(".m3u8") ? "application/x-mpegURL" : void 0 })) : void 0
   };
 }
+
+// src/screen/model.js
+var TAB_IDS = ["inicio", "peliculas", "series"];
+var BLOCK_OF = { inicio: "HomeES", peliculas: "MoviesES", series: "SeriesES" };
+var HTTPS = /^https?:\/\//;
+function cardOf(item) {
+  const out = { id: item.id, ref: item.ref, title: item.title, kind: item.kind };
+  if (item.poster && HTTPS.test(item.poster)) out.poster = item.poster;
+  if (item.backdrop && HTTPS.test(item.backdrop)) out.backdrop = item.backdrop;
+  return out;
+}
+
+// src/screen/view.js
+var twin = (field, es, en) => ({ [field]: es, [field + "En"]: en });
+var POLL_MS = 1500;
+var SEARCH_CAP = 60;
+var TAB_LABEL = { inicio: twin("label", "Inicio", "Home"), peliculas: twin("label", "Pel\xEDculas", "Movies"), series: twin("label", "Series", "Series") };
+var railSkeleton = (n) => ({
+  type: "Column",
+  key: "skel" + n,
+  gap: 8,
+  children: [
+    { type: "Skeleton", shape: "line", width: 120 },
+    { type: "Row", gap: 12, sizes: ["compact"], children: [1, 2, 3].map((i) => ({ type: "Skeleton", shape: "card", key: `sk${n}c${i}`, flex: 1 })) },
+    { type: "Row", gap: 12, sizes: ["medium", "expanded"], children: [1, 2, 3, 4, 5, 6].map((i) => ({ type: "Skeleton", shape: "card", key: `sk${n}w${i}`, flex: 1 })) }
+  ]
+});
+var heroSkeleton = () => ({ type: "Skeleton", key: "heroSkeleton", shape: "block", height: { compact: 200, expanded: 320 } });
+var slideNode = (s) => ({
+  type: "heroCard",
+  key: "slide-" + s.id,
+  h: { compact: 200, expanded: 240 },
+  title: s.title,
+  titleEn: s.title,
+  text: s.text,
+  textEn: s.text,
+  image: s.image,
+  buttons: [
+    {
+      type: "ElevatedButton",
+      key: "watch-" + s.id,
+      ...twin("labelText", "Ver", "Watch"),
+      icon: "play",
+      onPressed: { go: { play: { ref: s.ref, kind: s.kind, id: s.id, title: s.title } } }
+    },
+    {
+      type: "TextButton",
+      key: "info-" + s.id,
+      ...twin("labelText", "M\xE1s info", "More info"),
+      onPressed: { go: { title: { ref: s.ref, kind: s.kind, id: s.id, title: s.title } } }
+    }
+  ]
+});
+var hero = (slides) => slides.length === 1 ? slideNode(slides[0]) : { type: "PageView", key: "hero" + slides.length, autoPlayMs: 6e3, children: slides.map(slideNode) };
+var cardNode = (c, size, scope) => ({ type: "titleCard", key: `${scope}-${c.id}`, size, item: cardOf(c) });
+var cardRow = (items, key) => ({ type: "SingleChildScrollView", key: key + "-s", direction: "horizontal", children: [{ type: "Row", key: key + "-r", gap: 12, children: items.map((c) => cardNode(c, "medium", key)) }] });
+var cardGrid = (items, key) => ({ type: "GridView", key, columns: { compact: 3, expanded: 6 }, children: items.map((c) => cardNode(c, "medium", key)) });
+var rail = (r, key) => ({
+  type: "Column",
+  key,
+  gap: 8,
+  children: [
+    { type: "Row", key: key + "-h", crossAxisAlignment: "center", children: [
+      { type: "Text", style: "h4", flex: 1, text: r.title, textEn: r.title },
+      ...r.ref ? [{ type: "TextButton", key: key + "-more", ...twin("labelText", "Ver m\xE1s", "See more"), onPressed: { go: { browse: { ref: r.ref, title: r.title } } } }] : []
+    ] },
+    cardRow(r.items, key)
+  ]
+});
+var tabBar = (active) => ({ type: "TabBar", key: "tabs", divider: false, value: active, onChanged: "tab", tabs: TAB_IDS.map((id) => ({ value: id, ...TAB_LABEL[id] })) });
+function browseView({ tab, data, pending, failed, device = "phone" }) {
+  const tv = device === "tv";
+  const active = TAB_IDS.includes(tab) ? tab : TAB_IDS[0];
+  const body = [];
+  if (data) {
+    if (data.slides.length > 0) body.push(hero(data.slides));
+    for (const r of data.rows) body.push(rail(r, "rail-" + String(r.id).replace(/[^A-Za-z0-9_-]/g, "_")));
+    if (data.rows.length === 0) body.push({ type: "Text", text: "Sin contenido por ahora.", textEn: "Nothing here yet.", color: "muted" });
+  } else if (failed) {
+    body.push({
+      type: "MaterialBanner",
+      key: "loadFailed",
+      role: "error",
+      text: "ZappTV no respondi\xF3.",
+      textEn: "ZappTV didn't answer.",
+      action: { label: "Reintentar", labelEn: "Retry", onTap: "retry" }
+    });
+  } else {
+    body.push(heroSkeleton(), railSkeleton(1), railSkeleton(2), railSkeleton(3));
+  }
+  const isBanner = (n) => !!n && (n.type === "heroCard" || n.key === "heroSkeleton" || n.type === "PageView" && String(n.key).startsWith("hero"));
+  const banner = body.length > 0 && isBanner(body[0]) ? body.shift() : null;
+  return {
+    type: "Scaffold",
+    appBar: {
+      type: "AppBar",
+      mergeWithKinoBar: true,
+      dense: true,
+      divider: false,
+      leading: { type: "IconButton", key: "close", icon: "close", ...twin("labelText", "Cerrar", "Close"), onPressed: { go: { close: true } } },
+      actions: tv ? [{ type: "IconButton", key: "searchButton", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" }] : [],
+      title: tv ? { type: "Row", key: "titleRow", gap: 24, crossAxisAlignment: "center", children: [{ type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" }, tabBar(active)] } : { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" }
+    },
+    ...tv ? {} : { floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" } },
+    body: { type: "Column", key: "page", children: [
+      ...tv ? [] : [{ type: "Column", key: "tabsRow", padding: { compact: 0, expanded: 24 }, children: [tabBar(active)] }],
+      { type: "SingleChildScrollView", key: "browse-" + active, flex: 1, children: [...banner ? [banner] : [], { type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] }
+    ] },
+    ...pending ? { every: { ms: POLL_MS, event: "tick" } } : {}
+  };
+}
+function searchView({ query, status, items, device = "phone" }) {
+  const tv = device === "tv";
+  const fields = [
+    { type: "TextField", key: "q", kind: "text", value: query, ...twin("labelText", "Buscar en ZappTV", "Search ZappTV"), maxLength: 100, autofocus: !tv },
+    { type: "ElevatedButton", key: "searchGo", ...twin("labelText", "Buscar", "Search"), icon: "search", submit: true }
+  ];
+  const searchForm = { type: "Form", key: "searchForm", onSubmitted: "search", gap: 8, children: tv ? [{ type: "Row", key: "searchRow", gap: 16, crossAxisAlignment: "center", children: fields }] : fields };
+  const body = tv ? [] : [searchForm];
+  if (status === "fail") {
+    body.push({ type: "MaterialBanner", key: "searchFailed", role: "error", text: "La b\xFAsqueda fall\xF3.", textEn: "Search failed.", action: { label: "Reintentar", labelEn: "Retry", onTap: "sretry" } });
+  } else if (status === "done" && items) {
+    body.push(items.length === 0 ? { type: "Text", text: "Sin resultados.", textEn: "No results.", color: "muted" } : cardGrid(items.slice(0, SEARCH_CAP), "results"));
+  } else if (status !== "idle") {
+    body.push({ type: "Skeleton", shape: "block", height: 200, key: "searchSkeleton" });
+  }
+  return {
+    type: "Scaffold",
+    appBar: {
+      type: "AppBar",
+      mergeWithKinoBar: true,
+      dense: true,
+      divider: false,
+      leading: { type: "IconButton", key: "back", icon: "arrow_back", ...twin("labelText", "Atr\xE1s", "Back"), onPressed: "back" },
+      ...tv ? { title: searchForm } : { title: { type: "Text", text: "Buscar", textEn: "Search", style: "h4" } }
+    },
+    body: { type: "SingleChildScrollView", key: "search-page", children: [{ type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] },
+    ...status === "loading" ? { every: { ms: 1e3, event: "stick" } } : {}
+  };
+}
+
+// src/screen/index.js
+var TAB_KEY = "screenTab";
+var SNAP_PREFIX = "screenTab1:";
+var SNAP_TTL_MS = 24 * 3600 * 1e3;
+var SNAP_MAX = 20 * 1024;
+function makeScreen({ kino: kino2, tabPage: tabPage2, search: search2 }) {
+  const memo = /* @__PURE__ */ new Map();
+  const get2 = (k) => {
+    try {
+      return kino2.storage.get(k);
+    } catch (_) {
+      return null;
+    }
+  };
+  const set = (k, v, opts) => {
+    try {
+      kino2.storage.set(k, v, opts);
+    } catch (_) {
+    }
+  };
+  const log = (...a) => {
+    try {
+      kino2.log("[zapptv]", ...a);
+    } catch (_) {
+    }
+  };
+  function readSnap(tab) {
+    try {
+      const o = JSON.parse(get2(SNAP_PREFIX + tab) || "null");
+      return o && Date.now() - o.at < SNAP_TTL_MS && o.data && Array.isArray(o.data.rows) ? o.data : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function writeSnap(tab, data) {
+    for (let per = 10; per >= 3; per -= 2) {
+      const slim = { slides: data.slides, rows: data.rows.map((r) => ({ ...r, items: r.items.slice(0, per) })) };
+      const text = JSON.stringify({ at: Date.now(), data: slim });
+      if (text.length <= SNAP_MAX) {
+        set(SNAP_PREFIX + tab, text, { ttlMs: SNAP_TTL_MS });
+        return;
+      }
+    }
+  }
+  const stored = () => {
+    const t = get2(TAB_KEY);
+    return TAB_IDS.includes(t) ? t : null;
+  };
+  const remember = (tab) => set(TAB_KEY, tab);
+  function dataOf(tab) {
+    if (memo.has(tab)) return memo.get(tab).data;
+    const snap = readSnap(tab);
+    if (snap) {
+      memo.set(tab, { data: snap, whole: false });
+      return snap;
+    }
+    return null;
+  }
+  async function load(tab) {
+    const data = await tabPage2(BLOCK_OF[tab]);
+    if (data && data.rows.length) {
+      memo.set(tab, { data, whole: true });
+      writeSnap(tab, data);
+      return true;
+    }
+    return false;
+  }
+  function needed(tab, device) {
+    const order = [tab, ...TAB_IDS.filter((t) => t !== tab)];
+    return order.filter((t, i) => (i === 0 || device !== "tv") && !(memo.get(t) && memo.get(t).whole));
+  }
+  let found = null;
+  function view(ctx) {
+    const st = ctx.state && typeof ctx.state === "object" ? ctx.state : {};
+    if (ctx.route && ctx.route.name === "search") {
+      const query = typeof st.sq === "string" ? st.sq : "";
+      const items = found && found.q === query ? found.items : null;
+      const status = query === "" ? "idle" : st.sstate === "fail" ? "fail" : items ? "done" : "loading";
+      return searchView({ query, status, items, device: ctx.device });
+    }
+    const tab = TAB_IDS.includes(st.tab) ? st.tab : stored() ?? TAB_IDS[0];
+    const data = dataOf(tab);
+    const pending = Array.isArray(st.pending) && st.pending.length > 0;
+    return browseView({ tab, data, pending, failed: !!(st.failed && st.failed[tab]), device: ctx.device });
+  }
+  const events = {
+    open({ state, device }) {
+      const tab = TAB_IDS.includes(state.tab) ? state.tab : stored() ?? TAB_IDS[0];
+      for (const t of TAB_IDS) dataOf(t);
+      return { state: { tab, pending: needed(tab, device), failed: null } };
+    },
+    tab({ value, arg, state }) {
+      const tab = TAB_IDS.includes(value) ? value : TAB_IDS.includes(arg) ? arg : null;
+      if (!tab) return null;
+      remember(tab);
+      dataOf(tab);
+      const failed = { ...state.failed || {} };
+      delete failed[tab];
+      const pending = [tab, ...Array.isArray(state.pending) ? state.pending.filter((t) => t !== tab) : []];
+      return { state: { tab, pending: memo.get(tab) && memo.get(tab).whole ? pending.slice(1) : pending, failed } };
+    },
+    retry({ state, device }) {
+      const tab = TAB_IDS.includes(state.tab) ? state.tab : TAB_IDS[0];
+      return { state: { failed: null, pending: [tab, ...needed(tab, device).filter((t) => t !== tab)] } };
+    },
+    async tick({ state }) {
+      const pending = Array.isArray(state.pending) ? state.pending : [];
+      if (pending.length === 0) return null;
+      const [next, ...rest] = pending;
+      const failed = { ...state.failed || {} };
+      try {
+        const ok = await load(next);
+        if (!ok) failed[next] = true;
+        else delete failed[next];
+      } catch (e) {
+        log("tab_fail", e && e.code || "error");
+        failed[next] = true;
+      }
+      return { state: { pending: rest, failed } };
+    },
+    openSearch() {
+      return { route: { push: "search" }, state: { sq: "", sstate: null } };
+    },
+    search({ value, route }) {
+      const q = value && typeof value.q === "string" ? value.q.trim().slice(0, 100) : "";
+      if (q === "") return null;
+      const state = { sq: q, sstate: "loading" };
+      return route && route.name === "search" ? { state } : { route: { push: "search" }, state };
+    },
+    async stick({ state }) {
+      const q = typeof state.sq === "string" ? state.sq : "";
+      if (q === "" || state.sstate !== "loading") return null;
+      try {
+        const out = await search2({ q });
+        found = { q, items: (Array.isArray(out) ? out : []).slice(0, 60) };
+        return { state: { sstate: "done" } };
+      } catch (e) {
+        log("search_fail", e && e.code || "error");
+        return { state: { sstate: "fail" } };
+      }
+    },
+    sretry({ state }) {
+      return typeof state.sq === "string" && state.sq !== "" ? { state: { sstate: "loading" } } : null;
+    },
+    back() {
+      return { route: { pop: true }, state: { sq: null, sstate: null } };
+    }
+  };
+  async function event(ev) {
+    const handler = Object.hasOwn(events, ev.name) ? events[ev.name] : null;
+    return handler ? await handler({ ...ev, state: ev.state || {} }) ?? null : null;
+  }
+  return { view, event };
+}
+
+// src/plugin.js
+var screenInstance = null;
+var getScreen = () => screenInstance ?? (screenInstance = makeScreen({ kino, tabPage, search }));
+async function screen(ctx) {
+  await null;
+  return getScreen().view(ctx && typeof ctx === "object" ? ctx : {});
+}
+async function screenEvent(ev) {
+  await null;
+  return getScreen().event(ev && typeof ev === "object" ? ev : {});
+}
+async function settingsStatus() {
+  await null;
+  let base = "";
+  try {
+    base = kino.storage.get("lastWorkingBase") || "";
+  } catch (_) {
+    base = "";
+  }
+  const host = base ? new URL(base).hostname : null;
+  return { status: host ? `Conectado a ${host}` : "Sin conexi\xF3n reciente a ZappTV" };
+}
 export {
   browse,
   episodes,
   home,
   resolve,
-  search
+  screen,
+  screenEvent,
+  search,
+  settingsStatus
 };

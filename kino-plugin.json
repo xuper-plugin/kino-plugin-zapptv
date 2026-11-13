@@ -28,5 +28,26 @@
       "use": "cipher-key",
       "encoding": "hex"
     }
+  },
+  "settings": [
+    {
+      "key": "status",
+      "label": "Estado de conexión",
+      "labelEn": "Connection status",
+      "type": "status"
+    }
+  ],
+  "enhancements": {
+    "14": {
+      "capabilities": ["screen"],
+      "screen": {
+        "label": "ZappTV",
+        "labelEn": "ZappTV",
+        "icon": "movie",
+        "menuOpens": "screen",
+        "opensFrom": ["menu", "settings"],
+        "settingsButton": { "label": "Abrir ZappTV", "labelEn": "Open ZappTV" }
+      }
+    }
   }
 }

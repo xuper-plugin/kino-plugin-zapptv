@@ -32,9 +32,9 @@ export function episodeToKinoEpisode(fields) {
   };
 }
 
-/** ResInfo (ResDetail.baseInfo): the full metadata record, { resId=1, title=2, description=3,
- * category=4, rating=5, releaseYear=6, genres=8 (repeated), posterUrl=11, bgPosterUrl=12,
- * duration=13, totalEpisodes=14, resType=22 }. */
+/** ResInfo (ResDetail.baseInfo, and a FullScrollBlock carousel entry): the full metadata record,
+ * { resId=1, title=2, description=3, category=4, rating=5, releaseYear=6, genres=8 (repeated),
+ * posterUrl=11, bgPosterUrl=12, duration=13, totalEpisodes=14, resType=22 }. */
 export function resInfoToSeriesInfo(fields) {
   return {
     title: str(fields, 2) || undefined,
@@ -45,6 +45,22 @@ export function resInfoToSeriesInfo(fields) {
     year: str(fields, 6) || undefined,
     rating: num(fields, 5) || undefined,
     runtimeMinutes: num(fields, 13) || undefined,
+  };
+}
+
+/** The same ResInfo carousel entry, as a screen's hero slide: needs a backdrop and a synopsis. */
+export function resInfoToSlide(fields) {
+  const id = str(fields, 1);
+  const image = str(fields, 12) || str(fields, 11);
+  const text = str(fields, 3);
+  if (!id || !image || !text) return null;
+  return {
+    id,
+    ref: id,
+    kind: num(fields, 14) > 1 ? "series" : "movie", // totalEpisodes > 1 => series
+    title: str(fields, 2, "(sin título)"),
+    image,
+    text: text.length <= 160 ? text : `${text.slice(0, 159).trimEnd()}…`,
   };
 }
 

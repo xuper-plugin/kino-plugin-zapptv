@@ -1,9 +1,9 @@
 import { get } from "./api.js";
 import { repeatedMsg, str, num } from "./proto.js";
-import { resLiteInfoToItem } from "./mappers.js";
+import { resLiteInfoToItem, resInfoToSlide } from "./mappers.js";
 
 // BlockInfo { blockId=1, blockName=2, blockType=3 (the ref for block/{type}), isDefault=4, style=5 }.
-async function listBlocks() {
+export async function listBlocks() {
   const fields = await get("blocks");
   return repeatedMsg(fields, 1).map((b) => ({
     id: num(b, 1),
@@ -16,9 +16,7 @@ async function listBlocks() {
 // ResRow { rowId=1, rowName=2, rowType=3, resInfos=6 (repeated ResLiteInfo) }. A block answers up
 // to dozens of these, each up to ~100 items — we only read a `limit` slice of each.
 function rowsOf(fields, style, limit) {
-  const rowsField = style === "full_scroll" ? 2 : 1; // the carousel (full_scroll's field 1) is a
-  // richer, differently-shaped item (its "field 3" is a synopsis, not a poster URL) — skipped on
-  // purpose: resRows alone already cover every title, without that mismatch.
+  const rowsField = style === "full_scroll" ? 2 : 1;
   const out = [];
   for (const row of repeatedMsg(fields, rowsField)) {
     const items = [];
@@ -32,11 +30,27 @@ function rowsOf(fields, style, limit) {
   return out;
 }
 
+/** The carousel of a full_scroll block (field 1): richer entries (ResInfo, with a synopsis and a
+ * backdrop) used only for the screen's hero slider — plain rows use the lighter ResLiteInfo. */
+function slidesOf(fields, style, limit) {
+  if (style !== "full_scroll") return [];
+  const out = [];
+  for (const c of repeatedMsg(fields, 1)) {
+    if (out.length >= limit) break;
+    const s = resInfoToSlide(c);
+    if (s) out.push(s);
+  }
+  return out;
+}
+
 const safeId = (s) => String(s).replace(/[^A-Za-z0-9._~-]/g, "_").slice(0, 100) || "row";
 
 const HOME_ROWS_PER_BLOCK = 2;
 const HOME_ITEMS_PER_ROW = 20;
 const BROWSE_ITEMS_PER_ROW = 300;
+const TAB_ROWS_LIMIT = 10;
+const TAB_ITEMS_PER_ROW = 20;
+const TAB_SLIDES_LIMIT = 6;
 
 export async function home() {
   const blocks = await listBlocks();
@@ -58,4 +72,17 @@ export async function browse(ref, _cursor) {
   const block = blocks.find((b) => b.type === ref);
   const rows = rowsOf(await get(`block/${encodeURIComponent(ref)}`), block?.style, BROWSE_ITEMS_PER_ROW);
   return { items: rows.flatMap((r) => r.items) }; // one page: ZappTV's block/{type} has no further cursor
+}
+
+/** One block as the screen's `screen/model.js` wants it: a handful of hero slides plus its rails,
+ * each with a `ref` back to the block so the rail's own "Ver más" reuses browse(). */
+export async function tabPage(blockType) {
+  const blocks = await listBlocks();
+  const block = blocks.find((b) => b.type === blockType);
+  const fields = await get(`block/${encodeURIComponent(blockType)}`);
+  const rows = rowsOf(fields, block?.style, TAB_ITEMS_PER_ROW).slice(0, TAB_ROWS_LIMIT);
+  return {
+    slides: slidesOf(fields, block?.style, TAB_SLIDES_LIMIT),
+    rows: rows.map((r, i) => ({ id: `${safeId(blockType)}-${i}`, title: r.name, items: r.items, ref: blockType })),
+  };
 }

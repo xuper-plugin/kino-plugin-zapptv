@@ -351,11 +351,18 @@ async function resolve(ref, _options) {
 // src/screen/model.js
 var TAB_IDS = ["inicio", "peliculas", "series"];
 var BLOCK_OF = { inicio: "HomeES", peliculas: "MoviesES", series: "SeriesES" };
-var HTTPS = /^https?:\/\//;
+var HTTP = /^https?:\/\//;
+var httpsImage = (url) => HTTP.test(url) ? `https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//, ""))}` : void 0;
 function cardOf(item) {
   const out = { id: item.id, ref: item.ref, title: item.title, kind: item.kind };
-  if (item.poster && HTTPS.test(item.poster)) out.poster = item.poster;
-  if (item.backdrop && HTTPS.test(item.backdrop)) out.backdrop = item.backdrop;
+  if (item.poster) {
+    const u = httpsImage(item.poster);
+    if (u) out.poster = u;
+  }
+  if (item.backdrop) {
+    const u = httpsImage(item.backdrop);
+    if (u) out.backdrop = u;
+  }
   return out;
 }
 
@@ -375,7 +382,6 @@ var railSkeleton = (n) => ({
   ]
 });
 var heroSkeleton = () => ({ type: "Skeleton", key: "heroSkeleton", shape: "block", height: { compact: 200, expanded: 320 } });
-var httpsImage = (url) => typeof url === "string" && url ? `https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//, ""))}` : void 0;
 var slideNode = (s) => ({
   type: "heroCard",
   key: "slide-" + s.id,
@@ -418,8 +424,7 @@ var rail = (r, key) => ({
   ]
 });
 var tabBar = (active) => ({ type: "TabBar", key: "tabs", divider: false, value: active, onChanged: "tab", tabs: TAB_IDS.map((id) => ({ value: id, ...TAB_LABEL[id] })) });
-function browseView({ tab, data, pending, failed, device = "phone" }) {
-  const tv = device === "tv";
+function browseView({ tab, data, pending, failed }) {
   const active = TAB_IDS.includes(tab) ? tab : TAB_IDS[0];
   const body = [];
   if (data) {
@@ -442,18 +447,9 @@ function browseView({ tab, data, pending, failed, device = "phone" }) {
   const banner = body.length > 0 && isBanner(body[0]) ? body.shift() : null;
   return {
     type: "Scaffold",
-    appBar: {
-      type: "AppBar",
-      mergeWithKinoBar: true,
-      dense: true,
-      divider: false,
-      leading: { type: "IconButton", key: "close", icon: "close", ...twin("labelText", "Cerrar", "Close"), onPressed: { go: { close: true } } },
-      actions: tv ? [{ type: "IconButton", key: "searchButton", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" }] : [],
-      title: tv ? { type: "Row", key: "titleRow", gap: 24, crossAxisAlignment: "center", children: [{ type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" }, tabBar(active)] } : { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" }
-    },
-    ...tv ? {} : { floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" } },
+    floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" },
     body: { type: "Column", key: "page", children: [
-      ...tv ? [] : [{ type: "Column", key: "tabsRow", padding: { compact: 0, expanded: 24 }, children: [tabBar(active)] }],
+      { type: "Column", key: "tabsRow", padding: { compact: 0, expanded: 24 }, children: [tabBar(active)] },
       { type: "SingleChildScrollView", key: "browse-" + active, flex: 1, children: [...banner ? [banner] : [], { type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] }
     ] },
     ...pending ? { every: { ms: POLL_MS, event: "tick" } } : {}
@@ -478,9 +474,6 @@ function searchView({ query, status, items, device = "phone" }) {
     type: "Scaffold",
     appBar: {
       type: "AppBar",
-      mergeWithKinoBar: true,
-      dense: true,
-      divider: false,
       leading: { type: "IconButton", key: "back", icon: "arrow_back", ...twin("labelText", "Atr\xE1s", "Back"), onPressed: "back" },
       ...tv ? { title: searchForm } : { title: { type: "Text", text: "Buscar", textEn: "Search", style: "h4" } }
     },

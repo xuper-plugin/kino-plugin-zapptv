@@ -1,6 +1,6 @@
 // The screen's trees: a pure view of what index.js holds. A tab not in yet draws skeletons shaped
 // like what replaces them, so nothing jumps when the rows arrive. Every text is bilingual.
-import { TAB_IDS, cardOf } from "./model.js";
+import { TAB_IDS, cardOf, httpsImage } from "./model.js";
 
 const twin = (field, es, en) => ({ [field]: es, [field + "En"]: en });
 const POLL_MS = 1500;
@@ -15,12 +15,6 @@ const railSkeleton = (n) => ({
   ],
 });
 const heroSkeleton = () => ({ type: "Skeleton", key: "heroSkeleton", shape: "block", height: { compact: 200, expanded: 320 } });
-
-// The screen's image nodes (unlike a titleCard's poster) require https with no insecureHttp
-// exception, and ZappTV serves every image over plain http — so the hero's backdrop goes through
-// images.weserv.nl, a free, accountless proxy that re-fetches an http(s) image and re-serves it
-// over https: the standard fix for exactly this mismatch. (Declared as a manifest host, plain https.)
-const httpsImage = (url) => (typeof url === "string" && url ? `https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//, ""))}` : undefined);
 
 const slideNode = (s) => ({
   type: "heroCard", key: "slide-" + s.id, h: { compact: 200, expanded: 240 }, title: s.title, titleEn: s.title, text: s.text, textEn: s.text, image: httpsImage(s.image),
@@ -54,8 +48,7 @@ const tabBar = (active) => ({ type: "TabBar", key: "tabs", divider: false, value
  * `data`: `{ slides, rows }` of the active tab, or null while it is not in. `pending`: some tab is
  * still loading (the timer polls only then). `failed`: the active tab could not load.
  */
-export function browseView({ tab, data, pending, failed, device = "phone" }) {
-  const tv = device === "tv";
+export function browseView({ tab, data, pending, failed }) {
   const active = TAB_IDS.includes(tab) ? tab : TAB_IDS[0];
   const body = [];
   if (data) {
@@ -70,17 +63,13 @@ export function browseView({ tab, data, pending, failed, device = "phone" }) {
   }
   const isBanner = (n) => !!n && (n.type === "heroCard" || n.key === "heroSkeleton" || (n.type === "PageView" && String(n.key).startsWith("hero")));
   const banner = body.length > 0 && isBanner(body[0]) ? body.shift() : null;
+  // No appBar here: Kino already draws its own close+name bar above every screen (the manifest's
+  // `screen.label`), and adding a second one just duplicated it ("X ZappTV" twice, stacked).
   return {
     type: "Scaffold",
-    appBar: {
-      type: "AppBar", mergeWithKinoBar: true, dense: true, divider: false,
-      leading: { type: "IconButton", key: "close", icon: "close", ...twin("labelText", "Cerrar", "Close"), onPressed: { go: { close: true } } },
-      actions: tv ? [{ type: "IconButton", key: "searchButton", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" }] : [],
-      title: tv ? { type: "Row", key: "titleRow", gap: 24, crossAxisAlignment: "center", children: [{ type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" }, tabBar(active)] } : { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" },
-    },
-    ...(tv ? {} : { floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" } }),
+    floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" },
     body: { type: "Column", key: "page", children: [
-      ...(tv ? [] : [{ type: "Column", key: "tabsRow", padding: { compact: 0, expanded: 24 }, children: [tabBar(active)] }]),
+      { type: "Column", key: "tabsRow", padding: { compact: 0, expanded: 24 }, children: [tabBar(active)] },
       { type: "SingleChildScrollView", key: "browse-" + active, flex: 1, children: [...(banner ? [banner] : []), { type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] },
     ] },
     ...(pending ? { every: { ms: POLL_MS, event: "tick" } } : {}),
@@ -108,7 +97,7 @@ export function searchView({ query, status, items, device = "phone" }) {
   return {
     type: "Scaffold",
     appBar: {
-      type: "AppBar", mergeWithKinoBar: true, dense: true, divider: false,
+      type: "AppBar",
       leading: { type: "IconButton", key: "back", icon: "arrow_back", ...twin("labelText", "Atrás", "Back"), onPressed: "back" },
       ...(tv ? { title: searchForm } : { title: { type: "Text", text: "Buscar", textEn: "Search", style: "h4" } }),
     },

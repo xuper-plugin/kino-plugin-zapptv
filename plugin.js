@@ -448,13 +448,13 @@ function browseView({ tab, data, pending, failed, device = "phone" }) {
   }
   const isBanner = (n) => !!n && (n.type === "heroCard" || n.key === "heroSkeleton" || n.type === "PageView" && String(n.key).startsWith("hero"));
   const banner = body.length > 0 && isBanner(body[0]) ? body.shift() : null;
+  const searchAction = { type: "IconButton", key: "searchButton", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" };
   return {
     type: "Scaffold",
     appBar: {
       type: "AppBar",
       divider: false,
-      ...tv ? { actions: [{ type: "IconButton", key: "searchButton", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" }] } : {},
-      bottom: tabBar(active)
+      ...tv ? { title: tabBar(active), actions: [searchAction] } : { bottom: tabBar(active) }
     },
     ...tv ? {} : { floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" } },
     body: { type: "SingleChildScrollView", key: "browse-" + active, children: [...banner ? [banner] : [], { type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] },

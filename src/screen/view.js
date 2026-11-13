@@ -64,16 +64,18 @@ export function browseView({ tab, data, pending, failed, device = "phone" }) {
   }
   const isBanner = (n) => !!n && (n.type === "heroCard" || n.key === "heroSkeleton" || (n.type === "PageView" && String(n.key).startsWith("hero")));
   const banner = body.length > 0 && isBanner(body[0]) ? body.shift() : null;
-  // The appBar has NO leading/title: Kino already draws its own close+name bar above every screen,
-  // so ours would duplicate it ("X ZappTV" twice). It carries only the tab strip (in `bottom`, where
-  // a D-pad can reach it) and, on a TV, the search button as an action (a floating one is hard to
-  // reach with a remote); on a phone the search stays a FloatingActionButton.
+  // Kino already draws its own close+name bar above every screen, so this one carries NO leading/title
+  // text of its own (that would duplicate it). On a TV the tab strip goes in `title`, where it shares
+  // ONE compact row with the search action (a TabBar in `title` sits on the actions' row — a TabBar in
+  // `bottom` is a whole extra row, which stacked under Kino's bar looked cramped). On a phone the tabs
+  // are a full-width strip in `bottom` and search is a FloatingActionButton (easy to thumb; a remote
+  // can't reach a floating one, hence the bar button on TV).
+  const searchAction = { type: "IconButton", key: "searchButton", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" };
   return {
     type: "Scaffold",
     appBar: {
       type: "AppBar", divider: false,
-      ...(tv ? { actions: [{ type: "IconButton", key: "searchButton", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" }] } : {}),
-      bottom: tabBar(active),
+      ...(tv ? { title: tabBar(active), actions: [searchAction] } : { bottom: tabBar(active) }),
     },
     ...(tv ? {} : { floatingActionButton: { type: "FloatingActionButton", key: "searchFab", icon: "search", ...twin("labelText", "Buscar", "Search"), onPressed: "openSearch" } }),
     body: { type: "SingleChildScrollView", key: "browse-" + active, children: [...(banner ? [banner] : []), { type: "Column", padding: { compact: 12, expanded: 24 }, gap: 16, children: body }] },

@@ -375,6 +375,7 @@ var railSkeleton = (n) => ({
   ]
 });
 var heroSkeleton = () => ({ type: "Skeleton", key: "heroSkeleton", shape: "block", height: { compact: 200, expanded: 320 } });
+var httpsImage = (url) => typeof url === "string" && url ? `https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//, ""))}` : void 0;
 var slideNode = (s) => ({
   type: "heroCard",
   key: "slide-" + s.id,
@@ -383,7 +384,7 @@ var slideNode = (s) => ({
   titleEn: s.title,
   text: s.text,
   textEn: s.text,
-  image: s.image,
+  image: httpsImage(s.image),
   buttons: [
     {
       type: "ElevatedButton",

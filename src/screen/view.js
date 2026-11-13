@@ -16,8 +16,14 @@ const railSkeleton = (n) => ({
 });
 const heroSkeleton = () => ({ type: "Skeleton", key: "heroSkeleton", shape: "block", height: { compact: 200, expanded: 320 } });
 
+// The screen's image nodes (unlike a titleCard's poster) require https with no insecureHttp
+// exception, and ZappTV serves every image over plain http — so the hero's backdrop goes through
+// images.weserv.nl, a free, accountless proxy that re-fetches an http(s) image and re-serves it
+// over https: the standard fix for exactly this mismatch. (Declared as a manifest host, plain https.)
+const httpsImage = (url) => (typeof url === "string" && url ? `https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//, ""))}` : undefined);
+
 const slideNode = (s) => ({
-  type: "heroCard", key: "slide-" + s.id, h: { compact: 200, expanded: 240 }, title: s.title, titleEn: s.title, text: s.text, textEn: s.text, image: s.image,
+  type: "heroCard", key: "slide-" + s.id, h: { compact: 200, expanded: 240 }, title: s.title, titleEn: s.title, text: s.text, textEn: s.text, image: httpsImage(s.image),
   buttons: [
     { type: "ElevatedButton", key: "watch-" + s.id, ...twin("labelText", "Ver", "Watch"), icon: "play",
       onPressed: { go: { play: { ref: s.ref, kind: s.kind, id: s.id, title: s.title } } } },

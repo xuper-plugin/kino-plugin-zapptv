@@ -1,0 +1,32 @@
+{
+  "id": "zapptv",
+  "name": "ZappTV",
+  "version": "0.1.0",
+  "apiVersion": 6,
+  "entry": "plugin.js",
+  "icon": "icon.png",
+  "description": "Catálogo y streaming de ZappTV (películas, series y TV en vivo).",
+  "categories": ["movies", "series", "live"],
+  "hosts": [
+    { "host": "api.myzapptv.com", "insecureHttp": true },
+    { "host": "api.zapptv.co", "insecureHttp": true },
+    { "host": "api.zapptv.fun", "insecureHttp": true },
+    { "host": "image.myzapptv.com", "insecureHttp": true },
+    { "host": "cdn.myzapptv.com", "insecureHttp": true },
+    { "host": "gb.myzapptv.com", "insecureHttp": true }
+  ],
+  "capabilities": [
+    "search",
+    "home",
+    "browse",
+    "episodes",
+    "resolve"
+  ],
+  "secrets": {
+    "aesKey": {
+      "seal": "kino-sealed:v1:WLJX2chm2mN-Rw2tS_ThXMUL3tr61YHms08jSvNd6Q6NczL9F360tG68_VqjnyN-bcfjEL5XShDByjn7pXiV7qOfEhfV5Jjk4IAfn8v9V6zvuF10jSpl7OzExbY",
+      "use": "cipher-key",
+      "encoding": "hex"
+    }
+  }
+}

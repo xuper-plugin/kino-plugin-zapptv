@@ -8,12 +8,10 @@ const POLL_MS = 1500;
 const SEARCH_CAP = 60;
 const TAB_LABEL = { inicio: twin("label", "Inicio", "Home"), peliculas: twin("label", "Películas", "Movies"), series: twin("label", "Series", "Series") };
 
-// The brand shown in the merged bar, like UltraHD's "[UHD] Ultra Hd": the plugin's logo next to its
-// name. The logo is an inline data: PNG (no network), with the name as its fallback for a Kino that
-// cannot draw it.
-const logo = { type: "Image", key: "logo", url: LOGO_DATA, aspect: LOGO_ASPECT, fit: "contain", h: 32, alt: "ZappTV", altEn: "ZappTV", fallback: { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" } };
-const name = { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" };
-const brand = { type: "Row", key: "brand", gap: 8, crossAxisAlignment: "center", children: [logo, name] };
+// The brand in the merged bar: ONE horizontal logo image (the lightning mark + the "ZappTV"
+// wordmark baked together, white on transparent), not a mark plus a separate text node. It is an
+// inline data: PNG (no network); the name is its fallback for a Kino that cannot draw it.
+const brand = { type: "Image", key: "logo", url: LOGO_DATA, aspect: LOGO_ASPECT, fit: "contain", h: 32, alt: "ZappTV", altEn: "ZappTV", fallback: { type: "Text", text: "ZappTV", textEn: "ZappTV", style: "h4" } };
 
 const railSkeleton = (n) => ({
   type: "Column", key: "skel" + n, gap: 8, children: [

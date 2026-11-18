@@ -22,11 +22,7 @@ function exampleEsbuild() {
   }
 }
 
-// These tests read files of the Kino repo itself (docs/plugins/, plugins/archive-org, its .gitignore). A template does
-// not carry them, so they are skipped here and run in the Kino repo.
-const NEEDS_KINO_REPO = "needs files of the Kino repo that this template does not have";
-
-test("--bundle writes src/, the build script, package.json and the built check, and no hand-written plugin.js", { skip: NEEDS_KINO_REPO }, () => {
+test("--bundle writes src/, the build script, package.json and the built check, and no hand-written plugin.js", () => {
   const dir = mkdtempSync(join(tmpdir(), "kino-init-bundle-"));
   try {
     const written = scaffold(dir, { id: "mi-plugin", host: "example.org", bundle: true });

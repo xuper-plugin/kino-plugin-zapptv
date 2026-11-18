@@ -44,9 +44,9 @@ async function code(promise) {
 
 test("contract: kino.meta and kino.tmdb are additive (no new apiVersion) and pinned", () => {
   // apiVersion 9 (Kino 0.9.55) brought kino.meta by title among others; kino.meta and kino.tmdb themselves add none.
-  assert.equal(contract.apiVersion, 15);
-  assert.deepEqual(contract.apiVersionFromApp, { "6": "0.9.50", "7": "0.9.51", "8": "0.9.54", "9": "0.9.55", "10": "0.9.65", "11": "0.9.66", "12": "0.9.74", "13": "0.9.74", "14": "0.9.74", "15": "TBD" });
-  assert.deepEqual(contract.additiveFromApp, { "kino.meta": "0.9.53", "kino.tmdb": "0.9.53", catalogOnly: "0.9.54", "kino.browser.captureAll": "0.9.54", "fetch.errorHost": "0.9.55", "kino.fetchAnyHost": "0.9.55", "kino.meta.byTitle": "0.9.55", "kino.device": "0.9.55", "kino.seed": "0.9.55", "panel.loading": "0.9.64", "kino.nuvio": "0.9.71", "kino.sync.remoteChanged": "0.9.74", "action.link": "0.9.74", "action.setSettings": "0.9.74", "kino.library.episode": "TBD" });
+  assert.equal(contract.apiVersion, 27);
+  assert.deepEqual(contract.apiVersionFromApp, { "6": "0.9.50", "7": "0.9.51", "8": "0.9.54", "9": "0.9.55", "10": "0.9.65", "11": "0.9.66", "12": "0.9.74", "13": "0.9.74", "14": "0.9.74", "15": "0.9.77", "16": "0.9.78", "17": "TBD", "18": "0.9.81", "19": "0.9.81", "20": "0.9.81", "21": "0.9.82", "22": "0.9.83", "23": "0.9.83", "24": "0.9.85", "25": "0.9.86", "26": "0.9.87", "27": "TBD" });
+  assert.deepEqual(contract.additiveFromApp, { "kino.meta": "0.9.53", "kino.tmdb": "0.9.53", catalogOnly: "0.9.54", "kino.browser.captureAll": "0.9.54", "fetch.errorHost": "0.9.55", "kino.fetchAnyHost": "0.9.55", "kino.meta.byTitle": "0.9.55", "kino.device": "0.9.55", "kino.seed": "0.9.55", "panel.loading": "0.9.64", "kino.nuvio": "0.9.71", "kino.sync.remoteChanged": "0.9.74", "action.link": "0.9.74", "action.setSettings": "0.9.74", "kino.library.episode": "0.9.77", "kino.sync.setActive": "0.9.78", recommends: "0.9.81", "screen.installed": "0.9.81", "scaffold.onBack": "0.9.81", "appBar.mergeWithKinoBar": "0.9.81", visualBrowser: "0.9.81", "kino.visualBrowser.available": "0.9.81", "protocol.ctx": "0.9.84", openFrom: "0.9.84", "go.plugin": "0.9.84", "kino.image.thumbnail": "0.9.84", "kino.screen.httpImages": "TBD" });
   assert.deepEqual(contract.kinoMeta.idKeys, ["imdb", "tmdb", "tvdb", "kitsu", "mal", "anilist"]);
   assert.equal(contract.kinoMeta.perMinute, 30);
   assert.equal(contract.kinoTmdb.perWindow, 40);
@@ -80,11 +80,7 @@ test("kino.meta: the query is checked like the app does", () => {
   assert.deepEqual(kinoMetaRequest({ type: "movie", ids: { imdb: "tt0133093", trakt: 4, mal: null } }), { type: "movie", ids: { imdb: "tt0133093" } });
 });
 
-// These tests read files of the Kino repo itself (docs/plugins/, plugins/archive-org, its .gitignore). A template does
-// not carry them, so they are skipped here and run in the Kino repo.
-const NEEDS_KINO_REPO = "needs files of the Kino repo that this template does not have";
-
-test("kino.meta: null by default, a fixture's answer when one is given", { skip: NEEDS_KINO_REPO }, async () => {
+test("kino.meta: null by default, a fixture's answer when one is given", async () => {
   assert.equal(await kinoWith().meta({ type: "movie", ids: { imdb: "tt0133093" } }), null);
   const kino = kinoWith({ metaFixture: join(fixtures, "meta.json") });
   assert.equal((await kino.meta({ type: "movie", ids: { imdb: "tt0133093" } })).ids.tmdb, 603);
@@ -199,7 +195,7 @@ test("kino.tmdb: an answer is cached 10 minutes by path and params", async () =>
   assert.equal(calls.length, 3);
 });
 
-test("kino.tmdb: 40 calls per 10 s per plugin, then rate_limited", { skip: NEEDS_KINO_REPO }, async () => {
+test("kino.tmdb: 40 calls per 10 s per plugin, then rate_limited", async () => {
   const clock = fakeClock();
   const kino = kinoWith({ tmdbFixture: join(fixtures, "tmdb.json"), now: clock.now });
   for (let i = 0; i < contract.kinoTmdb.perWindow; i++) await kino.tmdb("/movie/603");
@@ -208,7 +204,7 @@ test("kino.tmdb: 40 calls per 10 s per plugin, then rate_limited", { skip: NEEDS
   await kino.tmdb("/movie/603");
 });
 
-test("kino.tmdb: a fixture answers offline, by path and sorted params or by path", { skip: NEEDS_KINO_REPO }, async () => {
+test("kino.tmdb: a fixture answers offline, by path and sorted params or by path", async () => {
   const kino = kinoWith({ tmdbFixture: join(fixtures, "tmdb.json") });
   assert.equal((await kino.tmdb("/trending/movie/week", { language: "es-MX" })).results[0].id, 603);
   assert.equal((await kino.tmdb("/movie/603", { language: "es-MX" })).imdb_id, "tt0133093");

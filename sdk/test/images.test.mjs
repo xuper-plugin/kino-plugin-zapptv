@@ -116,11 +116,7 @@ function imagesGuide() {
   return readme.slice(readme.indexOf("### Images from the plugin (`imageSource`, apiVersion 13)"), readme.indexOf("### Catalog (SQLite): `kino.catalog`"));
 }
 
-// These tests read files of the Kino repo itself (docs/plugins/, plugins/archive-org, its .gitignore). A template does
-// not carry them, so they are skipped here and run in the Kino repo.
-const NEEDS_KINO_REPO = "needs files of the Kino repo that this template does not have";
-
-test("the README's imageSource plugin runs as written: public posters stay URLs, the rest are references served by image", { skip: NEEDS_KINO_REPO }, async () => {
+test("the README's imageSource plugin runs as written: public posters stay URLs, the rest are references served by image", async () => {
   const guide = imagesGuide();
   assert.ok(guide.length > 1000, "the README lost its imageSource section");
   const blocks = [...guide.matchAll(/```js\n([\s\S]*?)```/g)].map((x) => x[1]);
@@ -175,7 +171,7 @@ test("the README's imageSource plugin runs as written: public posters stay URLs,
   }
 });
 
-test("the README's image export shape and storage one-liner hold the contract's words", { skip: NEEDS_KINO_REPO }, () => {
+test("the README's image export shape and storage one-liner hold the contract's words", () => {
   const guide = imagesGuide();
   for (const mime of contract.images.mimes) assert.ok(guide.includes(`\`${mime}\``), mime);
   assert.ok(guide.includes("262,144 bytes") && guide.includes("10 seconds") && guide.includes("512 characters"));

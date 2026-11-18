@@ -3,7 +3,24 @@ import { repeatedMsg, str, num } from "./proto.js";
 import { resLiteInfoToItem, resInfoToSlide } from "./mappers.js";
 
 // BlockInfo { blockId=1, blockName=2, blockType=3 (the ref for block/{type}), isDefault=4, style=5 }.
+// Kept 30 min: every home, browse and tab asks for the same list first, and that extra serial round
+// trip was half of home's 20 s budget on a slow mirror.
+const BLOCKS_KEY = "blocks.v1";
+const BLOCKS_TTL_MS = 30 * 60 * 1000;
+
 export async function listBlocks() {
+  try {
+    const cached = kino.storage.get(BLOCKS_KEY);
+    if (cached) return JSON.parse(cached);
+  } catch (_) { /* unreadable copy: fetch it again */ }
+  const blocks = await fetchBlocks();
+  if (blocks.length) {
+    try { kino.storage.set(BLOCKS_KEY, JSON.stringify(blocks), { ttlMs: BLOCKS_TTL_MS }); } catch (_) { /* full storage: no copy */ }
+  }
+  return blocks;
+}
+
+async function fetchBlocks() {
   const fields = await get("blocks");
   return repeatedMsg(fields, 1).map((b) => ({
     id: num(b, 1),

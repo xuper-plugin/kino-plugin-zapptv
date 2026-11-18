@@ -14,6 +14,13 @@ const CANDIDATES = [
   // above already proved to resolve off the blocked IP range.
 ];
 const BASE_STORAGE_KEY = "lastWorkingBase";
+// Kino gives home() 20 s in all. With kino.fetch's default 15 s a single blackholed base (a hijacked
+// DNS answer that never replies) ate the whole budget before the next mirror was even tried: GlitchTip
+// showed home timing out at ~20 s for 74 people on 0.3.5. A healthy base answers in well under 1 s.
+const ATTEMPT_TIMEOUT_MS = 6000;
+// A base that worked keeps working for days; forgetting it after 6 h sent every cold start back to a
+// blocked first candidate.
+const BASE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 function base64ToBytes(b64) {
   const bin = atob(b64);
@@ -31,7 +38,7 @@ function orderedCandidates() {
 /** Transport only: reaching `base` at all. Any failure here (refused host after a hijacked
  * redirect, timeout, non-2xx) means THIS base is bad — try the next one, never the caller's problem. */
 async function rawFetch(base, path) {
-  const res = await kino.fetch(base + path, { method: "GET", headers: headers(), cookies: false });
+  const res = await kino.fetch(base + path, { method: "GET", headers: headers(), cookies: false, timeoutMs: ATTEMPT_TIMEOUT_MS });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return base64ToBytes(res.base64());
 }
@@ -48,7 +55,7 @@ export async function get(path) {
     } catch (_) {
       continue;
     }
-    kino.storage.set(BASE_STORAGE_KEY, base, { ttlMs: 6 * 60 * 60 * 1000 });
+    try { kino.storage.set(BASE_STORAGE_KEY, base, { ttlMs: BASE_TTL_MS }); } catch (_) { /* full storage: just no memory */ }
     return unwrapEnvelope(bytes); // lets a real kino.error (business code) propagate as-is
   }
   throw kino.error("unavailable", "ZappTV no responde en ninguno de sus servidores");

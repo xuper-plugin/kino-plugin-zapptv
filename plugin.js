@@ -133,6 +133,8 @@ var CANDIDATES = [
   // above already proved to resolve off the blocked IP range.
 ];
 var BASE_STORAGE_KEY = "lastWorkingBase";
+var ATTEMPT_TIMEOUT_MS = 6e3;
+var BASE_TTL_MS = 7 * 24 * 60 * 60 * 1e3;
 function base64ToBytes(b64) {
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
@@ -145,7 +147,7 @@ function orderedCandidates() {
   return i <= 0 ? CANDIDATES : [CANDIDATES[i], ...CANDIDATES.filter((_, n) => n !== i)];
 }
 async function rawFetch(base, path) {
-  const res = await kino.fetch(base + path, { method: "GET", headers: headers(), cookies: false });
+  const res = await kino.fetch(base + path, { method: "GET", headers: headers(), cookies: false, timeoutMs: ATTEMPT_TIMEOUT_MS });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return base64ToBytes(res.base64());
 }
@@ -157,7 +159,10 @@ async function get(path) {
     } catch (_) {
       continue;
     }
-    kino.storage.set(BASE_STORAGE_KEY, base, { ttlMs: 6 * 60 * 60 * 1e3 });
+    try {
+      kino.storage.set(BASE_STORAGE_KEY, base, { ttlMs: BASE_TTL_MS });
+    } catch (_) {
+    }
     return unwrapEnvelope(bytes);
   }
   throw kino.error("unavailable", "ZappTV no responde en ninguno de sus servidores");
@@ -218,7 +223,24 @@ function subtitleToKinoSubtitle(fields) {
 }
 
 // src/catalog.js
+var BLOCKS_KEY = "blocks.v1";
+var BLOCKS_TTL_MS = 30 * 60 * 1e3;
 async function listBlocks() {
+  try {
+    const cached = kino.storage.get(BLOCKS_KEY);
+    if (cached) return JSON.parse(cached);
+  } catch (_) {
+  }
+  const blocks = await fetchBlocks();
+  if (blocks.length) {
+    try {
+      kino.storage.set(BLOCKS_KEY, JSON.stringify(blocks), { ttlMs: BLOCKS_TTL_MS });
+    } catch (_) {
+    }
+  }
+  return blocks;
+}
+async function fetchBlocks() {
   const fields = await get("blocks");
   return repeatedMsg(fields, 1).map((b) => ({
     id: num(b, 1),

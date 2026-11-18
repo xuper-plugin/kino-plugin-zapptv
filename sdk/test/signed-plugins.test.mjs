@@ -141,11 +141,7 @@ test("seal.mjs --keygen writes a private key once; --sign writes the signature i
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-// These tests read files of the Kino repo itself (docs/plugins/, plugins/archive-org, its .gitignore). A template does
-// not carry them, so they are skipped here and run in the Kino repo.
-const NEEDS_KINO_REPO = "needs files of the Kino repo that this template does not have";
-
-test("backward compatibility: the example plugin validates exactly as before, with no signature note", { skip: NEEDS_KINO_REPO }, async () => {
+test("backward compatibility: the example plugin validates exactly as before, with no signature note", async () => {
   const r = await validate(join(here, "..", "..", "archive-org"));
   assert.equal(r.ok, true);
   assert.deepEqual(r.consent.map((c) => c.text), ["Se conectará a los servidores que escribas en su configuración", "Puede descargar videos para verlos sin conexión"]);

@@ -1,7 +1,7 @@
 {
   "id": "zapptv",
   "name": "ZappTV",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "apiVersion": 6,
   "entry": "plugin.js",
   "icon": "icon.png",
@@ -13,7 +13,8 @@
     { "host": "api.zapptv.fun", "insecureHttp": true },
     { "host": "image.myzapptv.com", "insecureHttp": true },
     { "host": "cdn.myzapptv.com", "insecureHttp": true },
-    { "host": "gb.myzapptv.com", "insecureHttp": true }
+    { "host": "gb.myzapptv.com", "insecureHttp": true },
+    { "host": "gb.aiphotoalbum1.com", "insecureHttp": true }
   ],
   "capabilities": [
     "search",

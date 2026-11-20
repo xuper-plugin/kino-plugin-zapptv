@@ -1,5 +1,12 @@
 import { str, num, msg, repeatedMsg, repeatedStr } from "./proto.js";
 
+/** ZappTV keeps each season as its own series item titled "<base> Temporada N". Split that back into
+ * the show's base title and the season number; null when a title has no such suffix (a single season). */
+export function parseSeason(title) {
+  const m = /^(.+?)\s+Temporada\s+(\d{1,3})\s*$/i.exec(String(title || ""));
+  return m ? { base: m[1].trim(), number: Number(m[2]) } : null;
+}
+
 /** ResLiteInfo { resId=1, title=2, posterUrl=3, ..., isSeries=15 (observed; 1 = series, else movie) }. */
 export function resLiteInfoToItem(fields) {
   const id = str(fields, 1);

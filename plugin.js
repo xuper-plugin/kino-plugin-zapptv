@@ -169,6 +169,10 @@ async function get(path) {
 }
 
 // src/mappers.js
+function parseSeason(title) {
+  const m = /^(.+?)\s+Temporada\s+(\d{1,3})\s*$/i.exec(String(title || ""));
+  return m ? { base: m[1].trim(), number: Number(m[2]) } : null;
+}
 function resLiteInfoToItem(fields) {
   const id = str(fields, 1);
   if (!id) return null;
@@ -319,7 +323,28 @@ async function tabPage(blockType) {
 
 // src/search.js
 var PAGE_SIZE = 20;
-async function search(query) {
+function collapseSeasons(items) {
+  const out = [];
+  const at = /* @__PURE__ */ new Map();
+  for (const it of items) {
+    const p = it.kind === "series" ? parseSeason(it.title) : null;
+    if (!p) {
+      out.push(it);
+      continue;
+    }
+    const key = p.base.toLowerCase();
+    if (at.has(key)) {
+      const i = at.get(key);
+      if (p.number < out[i]._s) out[i] = { ...it, title: p.base, _s: p.number };
+      continue;
+    }
+    at.set(key, out.length);
+    out.push({ ...it, title: p.base, _s: p.number });
+  }
+  for (const o of out) delete o._s;
+  return out;
+}
+async function searchRaw(query) {
   const q = typeof query?.q === "string" ? query.q.trim() : "";
   if (!q) return [];
   const index = Number.isFinite(Number(query?.cursor)) ? Number(query.cursor) : 0;
@@ -327,9 +352,31 @@ async function search(query) {
   const fields = await get(path);
   return repeatedMsg(fields, 3).map(resLiteInfoToItem).filter(Boolean);
 }
+async function search(query) {
+  return collapseSeasons(await searchRaw(query));
+}
 
 // src/episodes.js
 var episodeRef = (seriesId, episodeId) => `${seriesId}:${episodeId}`;
+async function seasonsFor(seriesId, title) {
+  const here = parseSeason(title);
+  if (!here) return { seasons: void 0, baseTitle: void 0 };
+  const base = here.base;
+  const byId = /* @__PURE__ */ new Map();
+  try {
+    for (const it of await searchRaw({ q: base })) {
+      if (it.kind !== "series") continue;
+      const p = parseSeason(it.title);
+      if (p && p.base.toLowerCase() === base.toLowerCase()) {
+        byId.set(String(it.id), { id: String(it.id), ref: String(it.ref), title: `Temporada ${p.number}`, number: p.number });
+      }
+    }
+  } catch (_) {
+  }
+  if (!byId.has(seriesId)) byId.set(seriesId, { id: seriesId, ref: seriesId, title: `Temporada ${here.number}`, number: here.number });
+  const seasons = [...byId.values()].map((s) => ({ ...s, current: s.id === seriesId })).sort((a, b) => a.number - b.number).slice(0, 50);
+  return { seasons: seasons.length > 1 ? seasons : void 0, baseTitle: base };
+}
 async function episodes(ref) {
   const seriesId = String(ref).split(":")[0];
   const [episodesFields, detailFields] = await Promise.all([
@@ -350,8 +397,10 @@ async function episodes(ref) {
       still: str(base, 3) || void 0
     });
   }
-  const series = detailFields ? resInfoToSeriesInfo(msg(detailFields, 1) ?? {}) : void 0;
-  return { series, episodes: out };
+  let series = detailFields ? resInfoToSeriesInfo(msg(detailFields, 1) ?? {}) : void 0;
+  const { seasons, baseTitle } = await seasonsFor(seriesId, series && series.title);
+  if (series && baseTitle) series = { ...series, title: baseTitle };
+  return { series, episodes: out, ...seasons ? { seasons } : {} };
 }
 
 // src/resolve.js

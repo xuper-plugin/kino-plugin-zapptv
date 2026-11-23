@@ -1,21 +1,47 @@
 {
   "id": "zapptv",
   "name": "ZappTV",
-  "version": "0.3.7",
+  "version": "0.3.8",
   "apiVersion": 6,
   "entry": "plugin.js",
   "icon": "icon.png",
   "description": "Catálogo y streaming de ZappTV (películas, series y TV en vivo).",
-  "categories": ["movies", "series", "live"],
-  "hosts": [
-    { "host": "api.myzapptv.com", "insecureHttp": true },
-    { "host": "api.zapptv.co", "insecureHttp": true },
-    { "host": "api.zapptv.fun", "insecureHttp": true },
-    { "host": "image.myzapptv.com", "insecureHttp": true },
-    { "host": "cdn.myzapptv.com", "insecureHttp": true },
-    { "host": "gb.myzapptv.com", "insecureHttp": true },
-    { "host": "gb.aiphotoalbum1.com", "insecureHttp": true }
+  "categories": [
+    "movies",
+    "series",
+    "live"
   ],
+  "hosts": [
+    {
+      "host": "api.myzapptv.com",
+      "insecureHttp": true
+    },
+    {
+      "host": "api.zapptv.co",
+      "insecureHttp": true
+    },
+    {
+      "host": "api.zapptv.fun",
+      "insecureHttp": true
+    },
+    {
+      "host": "image.myzapptv.com",
+      "insecureHttp": true
+    },
+    {
+      "host": "cdn.myzapptv.com",
+      "insecureHttp": true
+    },
+    {
+      "host": "gb.myzapptv.com",
+      "insecureHttp": true
+    },
+    {
+      "host": "gb.aiphotoalbum1.com",
+      "insecureHttp": true
+    }
+  ],
+  "streamHosts": "any",
   "capabilities": [
     "search",
     "home",
@@ -40,18 +66,28 @@
   ],
   "enhancements": {
     "14": {
-      "capabilities": ["screen"],
+      "capabilities": [
+        "screen"
+      ],
       "screen": {
         "label": "ZappTV",
         "labelEn": "ZappTV",
         "icon": "movie",
         "menuOpens": "screen",
-        "opensFrom": ["menu", "settings"],
-        "settingsButton": { "label": "Abrir ZappTV", "labelEn": "Open ZappTV" }
+        "opensFrom": [
+          "menu",
+          "settings"
+        ],
+        "settingsButton": {
+          "label": "Abrir ZappTV",
+          "labelEn": "Open ZappTV"
+        }
       }
     },
     "19": {
-      "capabilities": ["screen"]
+      "capabilities": [
+        "screen"
+      ]
     }
   }
 }

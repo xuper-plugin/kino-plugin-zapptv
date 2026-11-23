@@ -80,7 +80,7 @@ export function browseView({ tab, data, pending, failed, device = "phone" }) {
     type: "Scaffold",
     appBar: {
       type: "AppBar", mergeWithKinoBar: true, dense: true, divider: false,
-      leading: { type: "IconButton", key: "close", icon: "close", ...twin("labelText", "Cerrar", "Close"), onPressed: { go: { close: true } } },
+      leading: { type: "IconButton", key: "close", icon: "arrow_back", ...twin("labelText", "Atrás", "Back"), onPressed: { go: { close: true } } },
       title: tv ? { type: "Row", key: "titleRow", gap: 24, crossAxisAlignment: "center", children: [brand, tabBar(active)] } : brand,
       ...(tv ? { actions: [searchAction] } : {}),
     },

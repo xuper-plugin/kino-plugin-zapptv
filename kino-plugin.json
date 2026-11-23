@@ -1,7 +1,7 @@
 {
   "id": "zapptv",
   "name": "ZappTV",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "apiVersion": 6,
   "entry": "plugin.js",
   "icon": "icon.png",
@@ -89,5 +89,9 @@
         "screen"
       ]
     }
+  },
+  "signature": {
+    "authorKey": "6693946bd5c56196960959c4b9665fad5094374bcb85ddb282f8bf762c835263",
+    "value": "e36cf13d4c1330494bfee537784095e21981f91ca81879cc004ca146eeff952e6d3bf9992402eee307b027625cb0ba849b3ef740b4a754dff4ffb5c406b5750c"
   }
 }

@@ -1,7 +1,7 @@
 {
   "id": "zapptv",
   "name": "ZappTV",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "apiVersion": 6,
   "entry": "plugin.js",
   "icon": "icon.png",
@@ -88,10 +88,39 @@
       "capabilities": [
         "screen"
       ]
+    },
+    "20": {
+      "provides": {
+        "catalog": {
+          "summary": "Titles this plugin finds, for the author's other plugins",
+          "calls": {
+            "search": {
+              "in": {
+                "q": "string",
+                "type": "string?"
+              },
+              "out": "Item[]"
+            }
+          },
+          "types": {
+            "Item": {
+              "id": "string",
+              "ref": "string",
+              "title": "string",
+              "kind": "string",
+              "poster": "string?",
+              "backdrop": "string?",
+              "year": "string?",
+              "overview": "string?",
+              "tmdb": "number?"
+            }
+          }
+        }
+      }
     }
   },
   "signature": {
     "authorKey": "6693946bd5c56196960959c4b9665fad5094374bcb85ddb282f8bf762c835263",
-    "value": "e36cf13d4c1330494bfee537784095e21981f91ca81879cc004ca146eeff952e6d3bf9992402eee307b027625cb0ba849b3ef740b4a754dff4ffb5c406b5750c"
+    "value": "22428445986b0fa04feab67e3549a264c726b15fbc6dd9b1a09d7f1a9fec283a5f2a6c31e3a154329643eab6dec55dd1d356857669b44202dea5f75ac996e10a"
   }
 }

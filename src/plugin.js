@@ -6,6 +6,11 @@ import { makeScreen } from "./screen/index.js";
 
 export { home, browse, search, episodes, resolve };
 
+// The catalog door (Kino's plugin protocol, offered through enhancements."20"): Da-Video and the author's other plugins find
+// ZappTV's titles through it. An older Kino never calls it.
+import { catalogDoor } from "./door.js";
+export const proto_catalog_search = catalogDoor(search);
+
 // ---------- the screen (Kino apiVersion 14, offered through the manifest's enhancements."14") ----------
 // Below that apiVersion Kino never calls these; the plugin stays fully usable through home/search/
 // browse/episodes/resolve alone (Kino's own generic catalog screens).
